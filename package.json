@@ -1,0 +1,31 @@
+{
+  "name": "trip-planner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "preview": "next start --hostname 127.0.0.1",
+    "lint": "eslint .",
+    "test": "npm run build"
+  },
+  "dependencies": {
+    "lucide-react": "0.555.0",
+    "next": "16.2.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "@tailwindcss/postcss": "4.1.18",
+    "@types/node": "26.5.0",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.1",
+    "tailwindcss": "4.1.18",
+    "typescript": "6.0.3"
+  }
+}
