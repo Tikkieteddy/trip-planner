@@ -1,10 +1,11 @@
 "use client";
 
-import { AlertTriangle, ExternalLink, LocateFixed, MapPinned } from "lucide-react";
+import { AlertTriangle, ExternalLink, LocateFixed, MapPinned, Navigation, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadGoogleMaps, toGoogleLatLng } from "@/lib/maps";
 import { decodePolyline } from "@/lib/polyline";
 import type { PlannerPlace } from "@/types/trip";
+import { PlaceSearchInput } from "@/components/PlaceSearchInput";
 
 type GoogleMapPanelProps = {
   browserKey: string;
@@ -21,6 +22,9 @@ type GoogleMapPanelProps = {
   routePolyline?: string;
   onMapCenterSelected: (place: PlannerPlace) => void;
   onAddWaypoint: (place: PlannerPlace) => void;
+  onSetOrigin: (place: PlannerPlace) => void;
+  onSetDestination: (place: PlannerPlace) => void;
+  onSearchNearby: (place: PlannerPlace) => void;
 };
 
 type MarkerConfig = {
@@ -89,6 +93,9 @@ export function GoogleMapPanel({
   routePolyline,
   onMapCenterSelected,
   onAddWaypoint,
+  onSetOrigin,
+  onSetDestination,
+  onSearchNearby,
 }: GoogleMapPanelProps) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<GoogleMapInstance | null>(null);
@@ -96,6 +103,7 @@ export function GoogleMapPanel({
   const overlaysRef = useRef<GoogleMapOverlay[]>([]);
   const [loadError, setLoadError] = useState("");
   const [ready, setReady] = useState(false);
+  const [mapSearchPlace, setMapSearchPlace] = useState<PlannerPlace | null>(null);
 
   const markerConfigs = useMemo(() => {
     const configs: MarkerConfig[] = [];
@@ -158,7 +166,9 @@ export function GoogleMapPanel({
               return;
             }
 
-            onMapCenterSelected(mapClickPlace(latLng.lat(), latLng.lng()));
+            const place = mapClickPlace(latLng.lat(), latLng.lng());
+            setMapSearchPlace(place);
+            onMapCenterSelected(place);
           });
         }
 
@@ -288,6 +298,59 @@ export function GoogleMapPanel({
       ) : (
         <div className="relative min-h-0 flex-1">
           <div ref={mapElementRef} className={`${mapClassName} w-full bg-primary-soft`} />
+          <div className="absolute left-3 right-3 top-3 z-10 max-w-2xl sm:left-4 sm:right-auto sm:w-[min(560px,calc(100%-2rem))]">
+            <div className="rounded-lg border border-border bg-white/95 p-3 shadow-[0_18px_55px_rgba(13,18,56,0.22)] backdrop-blur">
+              <PlaceSearchInput
+                label="ค้นหาบนแผนที่"
+                placeholder="พิมพ์ชื่อสถานที่ เช่น บ้าน ร้านอาหาร สถานีชาร์จ"
+                value={mapSearchPlace}
+                center={origin?.location ?? tourismCenter?.location}
+                onSelect={(place) => {
+                  setMapSearchPlace(place);
+                  onMapCenterSelected(place);
+                }}
+                onClear={() => setMapSearchPlace(null)}
+              />
+              {mapSearchPlace ? (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onSetOrigin(mapSearchPlace)}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-success px-3 text-xs font-black text-white"
+                  >
+                    <LocateFixed className="size-4" aria-hidden="true" />
+                    ตั้งต้นทาง
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSetDestination(mapSearchPlace)}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-danger px-3 text-xs font-black text-white"
+                  >
+                    <MapPinned className="size-4" aria-hidden="true" />
+                    ตั้งปลายทาง
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAddWaypoint(mapSearchPlace)}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-warning px-3 text-xs font-black text-white"
+                  >
+                    <Plus className="size-4" aria-hidden="true" />
+                    เพิ่มจุดแวะ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSearchNearby(mapSearchPlace)}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow"
+                  >
+                    <Navigation className="size-4" aria-hidden="true" />
+                    ค้นหารอบนี้
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-2 text-xs font-semibold leading-5 text-muted">ค้นหาสถานที่ แล้วเลือกปุ่มว่าจะใช้ตำแหน่งนั้นทำอะไร</p>
+              )}
+            </div>
+          </div>
           {!ready ? (
             <div className="absolute inset-0 grid place-items-center bg-white/80">
               <div className="rounded-lg border border-border bg-white px-4 py-3 text-sm font-black text-primary-deep shadow-sm">

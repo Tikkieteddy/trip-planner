@@ -811,6 +811,17 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               setStatus("เลือกศูนย์กลางค้นหาจากแผนที่แล้ว");
             }}
             onAddWaypoint={addWaypoint}
+            onSetOrigin={(place) => {
+              setOrigin(place);
+              clearComputedData();
+              setStatus(`ตั้ง ${place.name} เป็นต้นทางแล้ว`);
+            }}
+            onSetDestination={(place) => {
+              setDestination(place);
+              clearComputedData();
+              setStatus(`ตั้ง ${place.name} เป็นปลายทางแล้ว`);
+            }}
+            onSearchNearby={(place) => void searchNearby(place)}
           />
 
           <section className="rounded-lg border border-border bg-white p-4 shadow-sm lg:hidden">
