@@ -9,6 +9,8 @@ import type { PlannerPlace } from "@/types/trip";
 type GoogleMapPanelProps = {
   browserKey: string;
   mapId?: string;
+  className?: string;
+  mapClassName?: string;
   origin: PlannerPlace | null;
   destination: PlannerPlace | null;
   waypoints: PlannerPlace[];
@@ -75,6 +77,8 @@ function mapClickPlace(latitude: number, longitude: number): PlannerPlace {
 export function GoogleMapPanel({
   browserKey,
   mapId,
+  className = "",
+  mapClassName = "h-[540px] min-h-[420px]",
   origin,
   destination,
   waypoints,
@@ -249,7 +253,7 @@ export function GoogleMapPanel({
 
   if (!browserKey) {
     return (
-      <section className="flex min-h-[520px] flex-col items-center justify-center rounded-lg border border-dashed border-cyan/50 bg-white p-6 text-center shadow-sm">
+      <section className={`flex min-h-[520px] flex-col items-center justify-center rounded-lg border border-dashed border-cyan/50 bg-white p-6 text-center shadow-sm ${className}`}>
         <AlertTriangle className="size-10 text-warning" aria-hidden="true" />
         <h2 className="mt-4 text-xl font-black text-primary-deep">ยังไม่ได้ตั้งค่า Browser API Key</h2>
         <p className="mt-2 max-w-md text-sm font-semibold leading-6 text-muted">
@@ -260,7 +264,7 @@ export function GoogleMapPanel({
   }
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-white shadow-sm">
+    <section className={`flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-white shadow-sm ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <p className="text-sm font-black text-primary-deep">แผนที่และเส้นทาง</p>
@@ -282,8 +286,8 @@ export function GoogleMapPanel({
           <p className="mt-3 text-sm font-bold text-danger">{loadError}</p>
         </div>
       ) : (
-        <div className="relative">
-          <div ref={mapElementRef} className="h-[540px] min-h-[420px] w-full bg-primary-soft" />
+        <div className="relative min-h-0 flex-1">
+          <div ref={mapElementRef} className={`${mapClassName} w-full bg-primary-soft`} />
           {!ready ? (
             <div className="absolute inset-0 grid place-items-center bg-white/80">
               <div className="rounded-lg border border-border bg-white px-4 py-3 text-sm font-black text-primary-deep shadow-sm">

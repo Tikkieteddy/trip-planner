@@ -46,6 +46,8 @@ type PlacesResponse = {
   places: PlannerPlace[];
 };
 
+type PlannerMenuKey = "route" | "itinerary" | "chargers" | "nearby" | "vehicle";
+
 const storageKey = "tikkie-trip-v1";
 
 const defaultSettings: TripSettings = {
@@ -273,6 +275,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [error, setError] = useState("");
   const [routeLoading, setRouteLoading] = useState(false);
   const [placesLoading, setPlacesLoading] = useState(false);
+  const [activePanel, setActivePanel] = useState<PlannerMenuKey>("route");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -319,6 +322,13 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   );
 
   const directionsUrl = buildDirectionsUrl(origin, destination, waypoints, settings);
+  const panelMenuItems = [
+    { key: "route" as const, label: "วางแผน", icon: Navigation, count: waypoints.length },
+    { key: "itinerary" as const, label: "รายการเดินทาง", icon: CalendarClock, count: routeStops.length },
+    { key: "chargers" as const, label: "จุดชาร์จ", icon: BatteryCharging, count: chargers.length },
+    { key: "nearby" as const, label: "ที่แวะใกล้เคียง", icon: MapPinned, count: nearbyPlaces.length },
+    { key: "vehicle" as const, label: "รถ/บันทึก", icon: Car, count: null },
+  ];
 
   function updateSetting<TKey extends keyof TripSettings>(key: TKey, value: TripSettings[TKey]) {
     setSettings((current) => ({
@@ -574,37 +584,71 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }
 
   return (
-    <main className="min-h-screen">
-      <header className="border-b border-white/40 bg-[linear-gradient(135deg,#070044_0%,#1700c7_64%,#00a5ff_100%)] text-yellow">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
+    <main className="min-h-dvh bg-background">
+      <header className="border-b border-white/35 bg-[linear-gradient(135deg,#070044_0%,#1700c7_72%,#006dff_100%)] text-yellow shadow-sm">
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-3 py-4 sm:px-4 lg:px-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="grid size-12 place-items-center rounded-lg bg-yellow text-primary shadow-lg">
+              <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-yellow text-primary shadow-lg">
                 <MapPinned className="size-7" aria-hidden="true" />
               </div>
               <div>
                 <p className="text-xs font-black uppercase text-yellow-soft">Tikkie Travel</p>
-                <h1 className="text-2xl font-black tracking-normal sm:text-3xl">Tikkie Trip – EV Travel Planner</h1>
+                <h1 className="text-xl font-black tracking-normal sm:text-2xl">Tikkie Trip – EV Travel Planner</h1>
               </div>
             </div>
-            <a
-              href="https://tikkiecenter.vercel.app"
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-yellow/40 bg-yellow px-4 text-sm font-black text-primary shadow-lg hover:bg-yellow-soft"
-            >
-              กลับ Tikkie Center
-              <ExternalLink className="size-4" aria-hidden="true" />
-            </a>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void calculateRoute()}
+                disabled={routeLoading}
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-yellow px-4 text-sm font-black text-primary shadow-lg hover:bg-yellow-soft disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {routeLoading ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Navigation className="size-4" aria-hidden="true" />}
+                คำนวณเส้นทาง
+              </button>
+              <a
+                href="https://tikkiecenter.vercel.app"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-yellow/35 px-4 text-sm font-black text-yellow hover:bg-white/10"
+              >
+                กลับ Tikkie Center
+                <ExternalLink className="size-4" aria-hidden="true" />
+              </a>
+            </div>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-2 md:grid-cols-3">
             <MetricCard icon={Navigation} label="ระยะทางรวม" value={route ? formatDistance(route.distanceMeters) : "รอคำนวณ"} />
             <MetricCard icon={CalendarClock} label="เวลาเดินทาง" value={route ? formatDuration(route.duration) : "รอคำนวณ"} />
             <MetricCard icon={BatteryCharging} label="สถานะแบตเตอรี่" value={estimates.length ? batterySummaryText(estimates) : "ยังไม่ประเมิน"} />
           </div>
+          <nav className="trip-scrollbar flex gap-2 overflow-x-auto pb-1" aria-label="เมนูวางแผนทริป">
+            {panelMenuItems.map((item) => {
+              const Icon = item.icon;
+              const selected = activePanel === item.key;
+
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setActivePanel(item.key)}
+                  className={`inline-flex min-h-12 shrink-0 items-center gap-2 rounded-lg border px-4 text-sm font-black transition ${
+                    selected ? "border-yellow bg-yellow text-primary shadow-lg" : "border-white/35 bg-white/10 text-yellow hover:bg-white/15"
+                  }`}
+                >
+                  <Icon className="size-4" aria-hidden="true" />
+                  {item.label}
+                  {typeof item.count === "number" ? (
+                    <span className={`rounded-md px-2 py-0.5 text-xs ${selected ? "bg-primary text-yellow" : "bg-white/15 text-yellow"}`}>{item.count}</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </nav>
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1800px] gap-4 px-4 py-4 sm:px-6 lg:px-8 xl:grid-cols-[360px_minmax(0,1fr)_390px]">
-        <aside className="space-y-4">
+      <div className="mx-auto grid max-w-[1800px] gap-3 px-3 py-3 sm:px-4 lg:h-[calc(100dvh-196px)] lg:grid-cols-[360px_minmax(0,1fr)_390px] lg:overflow-hidden lg:px-6">
+        <aside className="space-y-3 lg:h-full lg:overflow-y-auto lg:pr-1 trip-scrollbar">
           <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
             <div className="flex items-center gap-2">
               <Car className="size-5 text-cyan-deep" aria-hidden="true" />
@@ -738,7 +782,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           </section>
         </aside>
 
-        <div className="space-y-4">
+        <div className="flex min-h-[680px] flex-col gap-3 lg:h-full lg:min-h-0">
           {(error || status) && (
             <div
               className={`rounded-lg border p-3 text-sm font-bold leading-6 ${
@@ -752,6 +796,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           <GoogleMapPanel
             browserKey={browserKey}
             mapId={mapId}
+            className="min-h-[560px] flex-1 lg:min-h-0"
+            mapClassName="h-full min-h-[560px] lg:min-h-0"
             origin={origin}
             destination={destination}
             waypoints={waypoints}
@@ -767,7 +813,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             onAddWaypoint={addWaypoint}
           />
 
-          <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <section className="rounded-lg border border-border bg-white p-4 shadow-sm lg:hidden">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-black text-primary-deep">ค้นหาพื้นที่ท่องเที่ยว</h2>
@@ -826,8 +872,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           </section>
         </div>
 
-        <aside className="space-y-4">
-          <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
+        <aside className="space-y-3 lg:h-full lg:overflow-y-auto lg:pr-1 trip-scrollbar">
+          <section className={`${activePanel === "route" || activePanel === "itinerary" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-black text-primary-deep">Trip Itinerary</h2>
               <a
@@ -896,7 +942,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </button>
           </section>
 
-          <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <section className={`${activePanel === "chargers" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">สถานีชาร์จตามเส้นทาง</h2>
             <div className="mt-3 space-y-3">
               {placesLoading && chargers.length === 0 ? (
@@ -922,8 +968,57 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </div>
           </section>
 
-          <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <section className={`${activePanel === "nearby" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">สถานที่ใกล้เคียง</h2>
+            <div className="mt-3 rounded-lg border border-border bg-surface-strong p-3">
+              <PlaceSearchInput
+                label="ศูนย์กลางพื้นที่"
+                placeholder="ค้นหาเมือง ร้าน หรือสถานที่"
+                value={tourismCenter}
+                onSelect={setTourismCenter}
+                onClear={() => setTourismCenter(null)}
+              />
+              <label className="mt-3 block">
+                <span className="text-xs font-black text-primary-deep">ประเภทสถานที่</span>
+                <select
+                  value={tourismCategory.id}
+                  onChange={(event) => {
+                    const category = tourismCategories.find((item) => item.id === event.target.value) ?? tourismCategories[0];
+                    setTourismCategory(category);
+                  }}
+                  className="mt-2 w-full rounded-lg border border-border bg-white px-3 text-sm font-bold"
+                >
+                  {tourismCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {[5, 10, 20, 30, 50].map((radius) => (
+                  <button
+                    key={radius}
+                    type="button"
+                    onClick={() => updateSetting("tourismRadiusKm", radius)}
+                    className={`min-h-10 rounded-lg border px-3 text-xs font-black ${
+                      settings.tourismRadiusKm === radius ? "border-primary bg-primary text-yellow" : "border-border bg-white text-primary"
+                    }`}
+                  >
+                    {radius} กม.
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => tourismCenter && void searchNearby(tourismCenter)}
+                disabled={!tourismCenter || placesLoading}
+                className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-yellow disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {placesLoading ? <LoaderCircle className="size-4 animate-spin" /> : <Search className="size-4" />}
+                ค้นหาที่แวะใกล้เคียง
+              </button>
+            </div>
             <div className="mt-3 space-y-3">
               {nearbyPlaces.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border p-4 text-sm font-bold leading-6 text-muted">
@@ -942,7 +1037,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </div>
           </section>
 
-          <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <section className={`${activePanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">ประเมินแบตเตอรี่</h2>
             <p className="mt-2 text-xs font-bold leading-5 text-muted">
               เป็นการประมาณการจากระยะทางและค่า km/kWh เท่านั้น ผลจริงขึ้นกับความเร็ว อากาศ จราจร น้ำหนักบรรทุก แอร์ ความลาดชัน และสภาพแบตเตอรี่
@@ -977,7 +1072,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </div>
           </section>
 
-          <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <section className={`${activePanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">บันทึกในเครื่อง</h2>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button type="button" onClick={saveTrip} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
