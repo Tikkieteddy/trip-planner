@@ -653,11 +653,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   key={item.key}
                   type="button"
                   onClick={() => setActiveSetupPanel(item.key)}
-                  className={`inline-flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[9px] font-black text-primary-deep transition ${
+                  className={`inline-flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[7px] font-black text-primary-deep transition ${
                     selected ? "border-primary bg-yellow shadow-sm" : "border-yellow/60 bg-yellow/70 hover:bg-yellow"
                   }`}
                 >
-                  <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+                  <Icon className="size-3 shrink-0" aria-hidden="true" />
                   <span className="truncate">{item.label}</span>
                 </button>
               );
@@ -909,14 +909,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   key={item.key}
                   type="button"
                   onClick={() => setActivePanel(item.key)}
-                  className={`inline-flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[8px] font-black text-primary-deep transition ${
+                  className={`inline-flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[6px] font-black text-primary-deep transition ${
                     selected ? "border-primary bg-yellow shadow-sm" : "border-yellow/60 bg-yellow/70 hover:bg-yellow"
                   }`}
                 >
-                  <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+                  <Icon className="size-3 shrink-0" aria-hidden="true" />
                   <span className="truncate">{item.label}</span>
                   {typeof item.count === "number" ? (
-                    <span className={`shrink-0 rounded px-1 py-0.5 text-[8px] ${selected ? "bg-primary text-yellow" : "bg-white/70 text-primary-deep"}`}>{item.count}</span>
+                    <span className={`shrink-0 rounded px-1 py-0.5 text-[6px] ${selected ? "bg-primary text-yellow" : "bg-white/70 text-primary-deep"}`}>{item.count}</span>
                   ) : null}
                 </button>
               );
@@ -1000,24 +1000,45 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     เลือกต้นทางและปลายทางก่อน ระบบจะแสดงลำดับการเดินทางในหน้านี้
                   </p>
                 ) : (
-                  itineraryStops.map((place, index) => {
-                    const leg = route?.legs[index - 1];
+                  <div className="relative pl-6">
+                    <div className="absolute bottom-6 left-[9px] top-6 w-0.5 rounded-full bg-border" aria-hidden="true" />
+                    {itineraryStops.map((place, index) => {
+                      const leg = route?.legs[index - 1];
+                      const isFirst = index === 0;
+                      const isLast = index === itineraryStops.length - 1;
+                      const stepLabel = isFirst ? "เริ่มต้น" : isLast ? "ปลายทาง" : `จุดแวะ ${index}`;
 
-                    return (
-                      <div key={`${place.id}-itinerary-${index}`} className="rounded-lg border border-border bg-white p-3 shadow-sm">
-                        <p className="text-xs font-black text-muted">ลำดับ {index + 1}</p>
-                        <p className="mt-1 text-sm font-black leading-5 text-primary-deep">{place.name}</p>
-                        {place.address ? <p className="mt-1 text-xs font-semibold leading-5 text-muted">{place.address}</p> : null}
-                        {leg ? (
-                          <p className="mt-2 rounded-md bg-primary-soft px-2 py-1 text-xs font-black text-primary">
-                            จากจุดก่อนหน้า {formatDistance(leg.distanceMeters)} / {formatDuration(leg.duration)}
-                          </p>
-                        ) : index === 0 ? (
-                          <p className="mt-2 rounded-md bg-green-50 px-2 py-1 text-xs font-black text-success">จุดเริ่มต้น</p>
-                        ) : null}
-                      </div>
-                    );
-                  })
+                      return (
+                        <div key={`${place.id}-itinerary-${index}`} className="relative pb-3 last:pb-0">
+                          <span
+                            className={`absolute -left-6 top-4 grid size-5 place-items-center rounded-full border-2 border-white text-[9px] font-black shadow-sm ${
+                              isFirst ? "bg-success text-white" : isLast ? "bg-danger text-white" : "bg-yellow text-primary-deep"
+                            }`}
+                            aria-hidden="true"
+                          >
+                            {index + 1}
+                          </span>
+                          <div className="rounded-lg border border-border bg-white p-3 shadow-sm">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className={`text-xs font-black ${isFirst ? "text-success" : isLast ? "text-danger" : "text-warning"}`}>{stepLabel}</p>
+                                <p className="mt-1 text-sm font-black leading-5 text-primary-deep">{place.name}</p>
+                              </div>
+                              <span className="shrink-0 rounded-md bg-primary-soft px-2 py-1 text-[10px] font-black text-primary">ลำดับ {index + 1}</span>
+                            </div>
+                            {place.address ? <p className="mt-1 text-xs font-semibold leading-5 text-muted">{place.address}</p> : null}
+                            {leg ? (
+                              <p className="mt-2 rounded-md bg-primary-soft px-2 py-1 text-xs font-black text-primary">
+                                จากจุดก่อนหน้า {formatDistance(leg.distanceMeters)} / {formatDuration(leg.duration)}
+                              </p>
+                            ) : isFirst ? (
+                              <p className="mt-2 rounded-md bg-green-50 px-2 py-1 text-xs font-black text-success">จุดเริ่มต้นของทริป</p>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
                 {!route && itineraryStops.length > 1 ? (
                   <p className="rounded-lg border border-dashed border-border p-3 text-xs font-bold leading-5 text-muted">
