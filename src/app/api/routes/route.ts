@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
     const { origin, destination, waypoints } = parsed.data;
 
-    if (isSamePlace(origin.placeId, destination.placeId) || isSameLocation(origin.location, destination.location)) {
+    if (waypoints.length === 0 && (isSamePlace(origin.placeId, destination.placeId) || isSameLocation(origin.location, destination.location))) {
       return Response.json({ error: "ต้นทางและปลายทางต้องไม่เป็นจุดเดียวกัน" }, { status: 400 });
     }
 
