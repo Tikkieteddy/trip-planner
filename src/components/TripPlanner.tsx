@@ -328,6 +328,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     [origin, routeStops, routeWaypoints, terminalDestination],
   );
 
+  const routeInputError = useMemo(() => {
+    if (origin && destination && samePlace(origin, destination)) {
+      return "ต้นทางและปลายทางเป็นที่เดียวกัน กรุณาเลือกปลายทางใหม่";
+    }
+
+    return "";
+  }, [destination, origin]);
+  const routeActionDisabled = routeLoading || Boolean(routeInputError);
   const directionsUrl = buildDirectionsUrl(origin, destination, waypoints, settings);
   const setupMenuItems = [
     { key: "trip" as const, label: "ทริป", icon: Car },
@@ -410,12 +418,26 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
   function selectOrigin(place: PlannerPlace) {
     setOrigin(place);
+    if (destination && samePlace(place, destination)) {
+      setDestination(null);
+      setError("ต้นทางซ้ำกับปลายทางเดิม กรุณาเลือกปลายทางใหม่");
+      setStatus("");
+    } else {
+      setError("");
+    }
     setWaypoints((current) => current.filter((waypoint) => !samePlace(waypoint, place) && !Boolean(destination && samePlace(waypoint, destination))));
     clearComputedData();
   }
 
   function selectDestination(place: PlannerPlace) {
+    if (origin && samePlace(origin, place)) {
+      setError("ปลายทางซ้ำกับต้นทาง กรุณาเลือกสถานที่อื่นเป็นปลายทาง");
+      setStatus("");
+      return;
+    }
+
     setDestination(place);
+    setError("");
     setWaypoints((current) => current.filter((waypoint) => !samePlace(waypoint, place) && !Boolean(origin && samePlace(waypoint, origin))));
     clearComputedData();
   }
@@ -656,7 +678,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               <button
                 type="button"
                 onClick={() => void calculateRoute()}
-                disabled={routeLoading}
+                disabled={routeActionDisabled}
                 className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-yellow px-4 text-sm font-black text-primary shadow-lg hover:bg-yellow-soft disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {routeLoading ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Navigation className="size-4" aria-hidden="true" />}
@@ -710,7 +732,10 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 onSelect={(place) => {
                   selectOrigin(place);
                 }}
-                onClear={() => setOrigin(null)}
+                onClear={() => {
+                  setOrigin(null);
+                  clearComputedData();
+                }}
                 helperText="ใช้ suggestion จาก Google Places และโหลดพิกัดจาก Place Details"
               />
               <PlaceSearchInput
@@ -721,7 +746,10 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 onSelect={(place) => {
                   selectDestination(place);
                 }}
-                onClear={() => setDestination(null)}
+                onClear={() => {
+                  setDestination(null);
+                  clearComputedData();
+                }}
               />
 
               <div className="grid grid-cols-2 gap-3">
@@ -819,7 +847,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             <button
               type="button"
               onClick={() => void calculateRoute()}
-              disabled={routeLoading}
+              disabled={routeActionDisabled}
               className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-yellow shadow-lg hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-60"
             >
               {routeLoading ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Navigation className="size-4" aria-hidden="true" />}
@@ -965,6 +993,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 <ExternalLink className="size-3.5" />
               </a>
             </div>
+            {routeInputError ? (
+              <p className="mt-3 rounded-lg border border-danger/25 bg-red-50 p-3 text-sm font-bold leading-6 text-danger">
+                <AlertTriangle className="mr-2 inline size-4" aria-hidden="true" />
+                {routeInputError}
+              </p>
+            ) : null}
             {activePanel === "route" ? (
               <>
                 <div className="mt-4 space-y-3">
@@ -1015,7 +1049,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 <button
                   type="button"
                   onClick={() => void calculateRoute()}
-                  disabled={routeLoading}
+                  disabled={routeActionDisabled}
                   className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-primary px-3 text-sm font-black text-primary hover:bg-primary-soft disabled:opacity-60"
                 >
                   <RotateCcw className="size-4" />
