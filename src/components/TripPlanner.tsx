@@ -173,18 +173,6 @@ function ToggleRow({
   );
 }
 
-function MetricCard({ label, value, icon: Icon }: { label: string; value: string; icon: typeof BatteryCharging }) {
-  return (
-    <div className="rounded-lg border border-border bg-white p-3 shadow-sm">
-      <div className="flex items-center gap-2 text-xs font-black text-muted">
-        <Icon className="size-4 text-cyan-deep" aria-hidden="true" />
-        {label}
-      </div>
-      <p className="mt-2 text-xl font-black text-primary-deep">{value}</p>
-    </div>
-  );
-}
-
 function PlaceListCard({
   place,
   actionLabel,
@@ -586,40 +574,54 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   return (
     <main className="min-h-dvh bg-background">
       <header className="border-b border-white/35 bg-[linear-gradient(135deg,#070044_0%,#1700c7_72%,#006dff_100%)] text-yellow shadow-sm">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-3 py-4 sm:px-4 lg:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-yellow text-primary shadow-lg">
-                <MapPinned className="size-7" aria-hidden="true" />
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-2 px-3 py-2.5 sm:px-4 lg:px-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex min-w-[220px] flex-1 items-center gap-2">
+              <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-yellow text-primary shadow-lg">
+                <MapPinned className="size-6" aria-hidden="true" />
               </div>
-              <div>
-                <p className="text-xs font-black uppercase text-yellow-soft">Tikkie Travel</p>
-                <h1 className="text-xl font-black tracking-normal sm:text-2xl">Tikkie Trip – EV Travel Planner</h1>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase leading-none text-yellow-soft">Tikkie Travel</p>
+                <h1 className="truncate text-lg font-black leading-tight tracking-normal sm:text-xl">Tikkie Trip – EV Planner</h1>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+
+            <div className="trip-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto lg:justify-center">
+              <span className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm">
+                <Navigation className="size-4 text-cyan-deep" aria-hidden="true" />
+                ระยะทาง
+                <strong className="text-sm">{route ? formatDistance(route.distanceMeters) : "รอคำนวณ"}</strong>
+              </span>
+              <span className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm">
+                <CalendarClock className="size-4 text-cyan-deep" aria-hidden="true" />
+                เวลา
+                <strong className="text-sm">{route ? formatDuration(route.duration) : "รอคำนวณ"}</strong>
+              </span>
+              <span className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm">
+                <BatteryCharging className="size-4 text-cyan-deep" aria-hidden="true" />
+                แบต
+                <strong className="max-w-40 truncate text-sm">{estimates.length ? batterySummaryText(estimates) : "ยังไม่ประเมิน"}</strong>
+              </span>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
                 onClick={() => void calculateRoute()}
                 disabled={routeLoading}
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-yellow px-4 text-sm font-black text-primary shadow-lg hover:bg-yellow-soft disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-yellow px-4 text-sm font-black text-primary shadow-lg hover:bg-yellow-soft disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {routeLoading ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Navigation className="size-4" aria-hidden="true" />}
                 คำนวณเส้นทาง
               </button>
               <a
                 href="https://tikkiecenter.vercel.app"
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-yellow/35 px-4 text-sm font-black text-yellow hover:bg-white/10"
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-yellow/35 px-3 text-sm font-black text-yellow hover:bg-white/10"
               >
                 กลับ Tikkie Center
                 <ExternalLink className="size-4" aria-hidden="true" />
               </a>
             </div>
-          </div>
-          <div className="grid gap-2 md:grid-cols-3">
-            <MetricCard icon={Navigation} label="ระยะทางรวม" value={route ? formatDistance(route.distanceMeters) : "รอคำนวณ"} />
-            <MetricCard icon={CalendarClock} label="เวลาเดินทาง" value={route ? formatDuration(route.duration) : "รอคำนวณ"} />
-            <MetricCard icon={BatteryCharging} label="สถานะแบตเตอรี่" value={estimates.length ? batterySummaryText(estimates) : "ยังไม่ประเมิน"} />
           </div>
           <nav className="trip-scrollbar flex gap-2 overflow-x-auto pb-1" aria-label="เมนูวางแผนทริป">
             {panelMenuItems.map((item) => {
@@ -631,7 +633,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   key={item.key}
                   type="button"
                   onClick={() => setActivePanel(item.key)}
-                  className={`inline-flex min-h-12 shrink-0 items-center gap-2 rounded-lg border px-4 text-sm font-black transition ${
+                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-black transition ${
                     selected ? "border-yellow bg-yellow text-primary shadow-lg" : "border-white/35 bg-white/10 text-yellow hover:bg-white/15"
                   }`}
                 >
@@ -647,7 +649,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1800px] gap-3 px-3 py-3 sm:px-4 lg:h-[calc(100dvh-196px)] lg:grid-cols-[360px_minmax(0,1fr)_390px] lg:overflow-hidden lg:px-6">
+      <div className="mx-auto grid max-w-[1800px] gap-3 px-3 py-3 sm:px-4 lg:h-[calc(100dvh-124px)] lg:grid-cols-[360px_minmax(0,1fr)_390px] lg:overflow-hidden lg:px-6">
         <aside className="space-y-3 lg:h-full lg:overflow-y-auto lg:pr-1 trip-scrollbar">
           <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
             <div className="flex items-center gap-2">
