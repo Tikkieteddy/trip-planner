@@ -999,6 +999,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 {routeInputError}
               </p>
             ) : null}
+            {settings.tripType === "round-trip" ? (
+              <p className="mt-3 rounded-lg border border-cyan/25 bg-blue-50 p-3 text-sm font-bold leading-6 text-primary">
+                <Info className="mr-2 inline size-4" aria-hidden="true" />
+                ระบบจะคำนวณไปปลายทางหลักแล้วกลับต้นทาง
+              </p>
+            ) : null}
             {activePanel === "route" ? (
               <>
                 <div className="mt-4 space-y-3">

@@ -76,6 +76,7 @@ export async function googleJson<TResponse>({
     if (!response.ok) {
       const googleError = payload as { error?: { status?: string; message?: string } } | null;
       const status = googleError?.error?.status;
+      const googleMessage = googleError?.error?.message;
       const statusCode = statusCodeFromGoogleStatus(status);
       const friendlyMessage =
         statusCode === 429
@@ -86,7 +87,7 @@ export async function googleJson<TResponse>({
               ? "ข้อมูลที่ส่งไปยัง Google API ไม่ถูกต้อง"
               : "Google API ตอบกลับไม่สำเร็จ";
 
-      throw new GoogleApiError(friendlyMessage, statusCode);
+      throw new GoogleApiError(googleMessage ? `${friendlyMessage}: ${googleMessage}` : friendlyMessage, statusCode);
     }
 
     return payload as TResponse;
