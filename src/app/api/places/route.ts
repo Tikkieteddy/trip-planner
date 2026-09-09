@@ -16,13 +16,20 @@ function errorResponse(error: unknown) {
   return Response.json({ error: "ไม่สามารถประมวลผลคำขอได้" }, { status: 500 });
 }
 
+function schemaErrorMessage(error: { issues: Array<{ path: PropertyKey[]; message: string }> }) {
+  const issue = error.issues[0];
+  const field = issue?.path.length ? issue.path.join(".") : "ข้อมูลค้นหา";
+
+  return issue ? `ข้อมูลค้นหาไม่ถูกต้อง: ${field} ${issue.message}` : "ข้อมูลค้นหาไม่ถูกต้อง";
+}
+
 export async function POST(request: Request) {
   try {
     const json = (await request.json()) as unknown;
     const parsed = placesRequestSchema.safeParse(json);
 
     if (!parsed.success) {
-      return Response.json({ error: "ข้อมูลค้นหาไม่ถูกต้อง" }, { status: 400 });
+      return Response.json({ error: schemaErrorMessage(parsed.error) }, { status: 400 });
     }
 
     if (parsed.data.mode === "autocomplete") {

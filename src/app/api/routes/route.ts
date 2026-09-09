@@ -27,6 +27,13 @@ function errorResponse(error: unknown) {
   return Response.json({ error: "ไม่สามารถคำนวณเส้นทางได้" }, { status: 500 });
 }
 
+function schemaErrorMessage(error: { issues: Array<{ path: PropertyKey[]; message: string }> }) {
+  const issue = error.issues[0];
+  const field = issue?.path.length ? issue.path.join(".") : "ข้อมูลเส้นทาง";
+
+  return issue ? `ข้อมูลเส้นทางไม่ถูกต้อง: ${field} ${issue.message}` : "ข้อมูลเส้นทางไม่ถูกต้อง";
+}
+
 function isSamePlace(originPlaceId?: string, destinationPlaceId?: string) {
   return Boolean(originPlaceId && destinationPlaceId && originPlaceId === destinationPlaceId);
 }
@@ -51,7 +58,7 @@ export async function POST(request: Request) {
     const parsed = routeRequestSchema.safeParse(json);
 
     if (!parsed.success) {
-      return Response.json({ error: "ข้อมูลเส้นทางไม่ถูกต้อง" }, { status: 400 });
+      return Response.json({ error: schemaErrorMessage(parsed.error) }, { status: 400 });
     }
 
     const { origin, destination, waypoints } = parsed.data;
