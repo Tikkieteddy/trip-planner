@@ -75,7 +75,16 @@ const defaultSettings: TripSettings = {
 };
 
 function samePlace(a: PlannerPlace, b: PlannerPlace) {
-  return Boolean((a.placeId && b.placeId && a.placeId === b.placeId) || a.id === b.id);
+  const sameId = Boolean((a.placeId && b.placeId && a.placeId === b.placeId) || a.id === b.id);
+  const sameName = a.name.trim().toLocaleLowerCase("th-TH") === b.name.trim().toLocaleLowerCase("th-TH");
+  const closeLatitude = Math.abs(a.location.latitude - b.location.latitude) < 0.0005;
+  const closeLongitude = Math.abs(a.location.longitude - b.location.longitude) < 0.0005;
+
+  return sameId || (sameName && closeLatitude && closeLongitude);
+}
+
+function uniquePlaces(places: PlannerPlace[]) {
+  return places.filter((place, index) => places.findIndex((candidate) => samePlace(candidate, place)) === index);
 }
 
 function mapsSearchUrl(place: PlannerPlace) {
@@ -399,6 +408,18 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     clearComputedData();
   }
 
+  function selectOrigin(place: PlannerPlace) {
+    setOrigin(place);
+    setWaypoints((current) => current.filter((waypoint) => !samePlace(waypoint, place) && !Boolean(destination && samePlace(waypoint, destination))));
+    clearComputedData();
+  }
+
+  function selectDestination(place: PlannerPlace) {
+    setDestination(place);
+    setWaypoints((current) => current.filter((waypoint) => !samePlace(waypoint, place) && !Boolean(origin && samePlace(waypoint, origin))));
+    clearComputedData();
+  }
+
   async function searchChargingStations(encodedPolyline: string) {
     setPlacesLoading(true);
     setError("");
@@ -434,6 +455,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       return;
     }
 
+    if (samePlace(origin, destination)) {
+      setError("ต้นทางและปลายทางเป็นสถานที่เดียวกัน กรุณาเลือกปลายทางใหม่");
+      return;
+    }
+
     setRouteLoading(true);
     setError("");
     setStatus("");
@@ -441,7 +467,10 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     try {
       const isRoundTrip = settings.tripType === "round-trip";
       const requestDestination = isRoundTrip ? origin : destination;
-      const requestWaypoints = isRoundTrip ? [...waypoints, destination] : waypoints;
+      const cleanWaypoints = uniquePlaces(
+        waypoints.filter((waypoint) => !samePlace(waypoint, origin) && !samePlace(waypoint, destination)),
+      );
+      const requestWaypoints = isRoundTrip ? [...cleanWaypoints, destination] : cleanWaypoints;
       const response = await postJson<RouteResponse>("/api/routes", {
         origin,
         destination: requestDestination,
@@ -453,6 +482,10 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         optimizeWaypointOrder: !isRoundTrip && settings.optimizeWaypointOrder,
       });
       let orderedWaypoints = requestWaypoints;
+
+      if (cleanWaypoints.length !== waypoints.length) {
+        setWaypoints(cleanWaypoints);
+      }
 
       if (!isRoundTrip && response.route.optimizedWaypointOrder.length === requestWaypoints.length) {
         orderedWaypoints = response.route.optimizedWaypointOrder.map((index) => requestWaypoints[index]);
@@ -675,8 +708,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 placeholder="เช่น กรุงเทพฯ, บ้าน, สถานที่ทำงาน"
                 value={origin}
                 onSelect={(place) => {
-                  setOrigin(place);
-                  clearComputedData();
+                  selectOrigin(place);
                 }}
                 onClear={() => setOrigin(null)}
                 helperText="ใช้ suggestion จาก Google Places และโหลดพิกัดจาก Place Details"
@@ -687,8 +719,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 value={destination}
                 center={origin?.location}
                 onSelect={(place) => {
-                  setDestination(place);
-                  clearComputedData();
+                  selectDestination(place);
                 }}
                 onClear={() => setDestination(null)}
               />
@@ -827,13 +858,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             }}
             onAddWaypoint={addWaypoint}
             onSetOrigin={(place) => {
-              setOrigin(place);
-              clearComputedData();
+              selectOrigin(place);
               setStatus(`ตั้ง ${place.name} เป็นต้นทางแล้ว`);
             }}
             onSetDestination={(place) => {
-              setDestination(place);
-              clearComputedData();
+              selectDestination(place);
               setStatus(`ตั้ง ${place.name} เป็นปลายทางแล้ว`);
             }}
             onSearchNearby={(place) => void searchNearby(place)}
