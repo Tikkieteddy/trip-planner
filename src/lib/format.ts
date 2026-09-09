@@ -52,5 +52,7 @@ export function getDepartureIso(date: string, time: string) {
     return undefined;
   }
 
-  return localDate.toISOString();
+  const minimumDeparture = new Date(Date.now() + 10 * 60 * 1000);
+
+  return (localDate > minimumDeparture ? localDate : minimumDeparture).toISOString();
 }
