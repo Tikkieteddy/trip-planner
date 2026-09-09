@@ -46,6 +46,7 @@ type PlacesResponse = {
   places: PlannerPlace[];
 };
 
+type PlannerSetupKey = "trip" | "vehicle" | "filters";
 type PlannerMenuKey = "route" | "itinerary" | "chargers" | "nearby" | "vehicle";
 
 const storageKey = "tikkie-trip-v1";
@@ -263,6 +264,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [error, setError] = useState("");
   const [routeLoading, setRouteLoading] = useState(false);
   const [placesLoading, setPlacesLoading] = useState(false);
+  const [activeSetupPanel, setActiveSetupPanel] = useState<PlannerSetupKey>("trip");
   const [activePanel, setActivePanel] = useState<PlannerMenuKey>("route");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -310,6 +312,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   );
 
   const directionsUrl = buildDirectionsUrl(origin, destination, waypoints, settings);
+  const setupMenuItems = [
+    { key: "trip" as const, label: "ทริป", icon: Car },
+    { key: "vehicle" as const, label: "รถ", icon: Zap },
+    { key: "filters" as const, label: "ตัวกรอง", icon: Search },
+  ];
   const panelMenuItems = [
     { key: "route" as const, label: "วางแผน", icon: Navigation, count: waypoints.length },
     { key: "itinerary" as const, label: "รายการเดินทาง", icon: CalendarClock, count: routeStops.length },
@@ -623,35 +630,33 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               </a>
             </div>
           </div>
-          <nav className="trip-scrollbar flex gap-2 overflow-x-auto pb-1" aria-label="เมนูวางแผนทริป">
-            {panelMenuItems.map((item) => {
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-[1800px] gap-3 px-3 py-3 sm:px-4 lg:h-[calc(100dvh-82px)] lg:grid-cols-[360px_minmax(0,1fr)_390px] lg:overflow-hidden lg:px-6">
+        <aside className="space-y-3 lg:h-full lg:overflow-y-auto lg:pr-1 trip-scrollbar">
+          <nav className="trip-scrollbar flex gap-1.5 overflow-x-auto rounded-lg border border-border bg-white p-1.5 shadow-sm" aria-label="เมนูตั้งค่าทริป">
+            {setupMenuItems.map((item) => {
               const Icon = item.icon;
-              const selected = activePanel === item.key;
+              const selected = activeSetupPanel === item.key;
 
               return (
                 <button
                   key={item.key}
                   type="button"
-                  onClick={() => setActivePanel(item.key)}
-                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-black transition ${
-                    selected ? "border-yellow bg-yellow text-primary shadow-lg" : "border-white/35 bg-white/10 text-yellow hover:bg-white/15"
+                  onClick={() => setActiveSetupPanel(item.key)}
+                  className={`inline-flex min-h-8 flex-1 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2 text-[11px] font-black text-primary-deep transition ${
+                    selected ? "border-primary bg-yellow shadow-sm" : "border-yellow/60 bg-yellow/70 hover:bg-yellow"
                   }`}
                 >
-                  <Icon className="size-4" aria-hidden="true" />
+                  <Icon className="size-3.5" aria-hidden="true" />
                   {item.label}
-                  {typeof item.count === "number" ? (
-                    <span className={`rounded-md px-2 py-0.5 text-xs ${selected ? "bg-primary text-yellow" : "bg-white/15 text-yellow"}`}>{item.count}</span>
-                  ) : null}
                 </button>
               );
             })}
           </nav>
-        </div>
-      </header>
 
-      <div className="mx-auto grid max-w-[1800px] gap-3 px-3 py-3 sm:px-4 lg:h-[calc(100dvh-124px)] lg:grid-cols-[360px_minmax(0,1fr)_390px] lg:overflow-hidden lg:px-6">
-        <aside className="space-y-3 lg:h-full lg:overflow-y-auto lg:pr-1 trip-scrollbar">
-          <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <section className={`${activeSetupPanel === "trip" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center gap-2">
               <Car className="size-5 text-cyan-deep" aria-hidden="true" />
               <h2 className="text-lg font-black text-primary-deep">ตั้งค่าทริป</h2>
@@ -718,7 +723,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </div>
           </section>
 
-          <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <section className={`${activeSetupPanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center gap-2">
               <Zap className="size-5 text-warning" aria-hidden="true" />
               <h2 className="text-lg font-black text-primary-deep">Vehicle Profile</h2>
@@ -758,7 +763,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </label>
           </section>
 
-          <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <section className={`${activeSetupPanel === "filters" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">ตัวกรองและข้อจำกัด</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <NumberField label="จุดแวะสูงสุด" value={settings.maxStops} min={0} max={10} unit="จุด" onChange={(value) => updateSetting("maxStops", value)} />
@@ -886,6 +891,30 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         </div>
 
         <aside className="space-y-3 lg:h-full lg:overflow-y-auto lg:pr-1 trip-scrollbar">
+          <nav className="trip-scrollbar flex gap-1.5 overflow-x-auto rounded-lg border border-border bg-white p-1.5 shadow-sm" aria-label="เมนูผลลัพธ์ทริป">
+            {panelMenuItems.map((item) => {
+              const Icon = item.icon;
+              const selected = activePanel === item.key;
+
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setActivePanel(item.key)}
+                  className={`inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2 text-[11px] font-black text-primary-deep transition ${
+                    selected ? "border-primary bg-yellow shadow-sm" : "border-yellow/60 bg-yellow/70 hover:bg-yellow"
+                  }`}
+                >
+                  <Icon className="size-3.5" aria-hidden="true" />
+                  <span>{item.label}</span>
+                  {typeof item.count === "number" ? (
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] ${selected ? "bg-primary text-yellow" : "bg-white/70 text-primary-deep"}`}>{item.count}</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </nav>
+
           <section className={`${activePanel === "route" || activePanel === "itinerary" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-black text-primary-deep">Trip Itinerary</h2>
