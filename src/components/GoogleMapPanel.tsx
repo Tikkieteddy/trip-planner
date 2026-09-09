@@ -343,11 +343,11 @@ export function GoogleMapPanel({
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow"
                   >
                     <Navigation className="size-4" aria-hidden="true" />
-                    ค้นหารอบนี้
+                    ค้นหารอบจุดนี้
                   </button>
                 </div>
               ) : (
-                <p className="mt-2 text-xs font-semibold leading-5 text-muted">ค้นหาสถานที่ แล้วเลือกปุ่มว่าจะใช้ตำแหน่งนั้นทำอะไร</p>
+                <p className="mt-2 text-xs font-semibold leading-5 text-muted">ค้นหาสถานที่แล้วเลือกผลลัพธ์ก่อน จากนั้นเลือกว่าจะตั้งเป็นจุดใดหรือค้นหารอบจุดนั้น</p>
               )}
             </div>
           </div>

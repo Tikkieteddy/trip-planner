@@ -13,6 +13,10 @@ type PlaceDetailsResponse = {
   place: PlannerPlace;
 };
 
+type PlacesResponse = {
+  places: PlannerPlace[];
+};
+
 type PlaceSearchInputProps = {
   label: string;
   value: PlannerPlace | null;
@@ -37,6 +41,7 @@ export function PlaceSearchInput({ label, value, placeholder, helperText, center
   const [query, setQuery] = useState(value?.name ?? "");
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [loading, setLoading] = useState(false);
+  const [textSearchLoading, setTextSearchLoading] = useState(false);
   const [detailsLoadingPlaceId, setDetailsLoadingPlaceId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const sessionTokenRef = useRef(newSessionToken());
@@ -119,6 +124,41 @@ export function PlaceSearchInput({ label, value, placeholder, helperText, center
     }
   }
 
+  async function searchByText() {
+    const trimmed = query.trim();
+
+    if (trimmed.length < 2) {
+      return;
+    }
+
+    setTextSearchLoading(true);
+    setError("");
+
+    try {
+      const response = await postJson<PlacesResponse>("/api/places", {
+        mode: "text-search",
+        input: trimmed,
+        center,
+        maxResultCount: 5,
+      });
+      const place = response.places[0];
+
+      if (!place) {
+        setError("ไม่พบสถานที่จาก Google Places Text Search");
+        return;
+      }
+
+      onSelect(place);
+      setQuery(place.name);
+      setPredictions([]);
+      sessionTokenRef.current = newSessionToken();
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "ค้นหาด้วยชื่อสถานที่ไม่สำเร็จ");
+    } finally {
+      setTextSearchLoading(false);
+    }
+  }
+
   return (
     <div className="relative">
       <label htmlFor={inputId} className="text-sm font-black text-primary-deep">
@@ -154,6 +194,17 @@ export function PlaceSearchInput({ label, value, placeholder, helperText, center
       </div>
       {helperText ? <p className="mt-1 text-xs font-semibold text-muted">{helperText}</p> : null}
       {error ? <p className="mt-2 text-xs font-bold text-danger">{error}</p> : null}
+      {error && predictions.length === 0 && query.trim().length >= 2 ? (
+        <button
+          type="button"
+          onClick={() => void searchByText()}
+          disabled={textSearchLoading}
+          className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-cyan/40 bg-blue-50 px-3 text-xs font-black text-primary hover:border-cyan disabled:opacity-60"
+        >
+          {textSearchLoading ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Search className="size-3.5" aria-hidden="true" />}
+          ค้นหาด้วยชื่อนี้
+        </button>
+      ) : null}
 
       {showPredictions ? (
         <div

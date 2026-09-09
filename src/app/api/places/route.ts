@@ -58,6 +58,31 @@ export async function POST(request: Request) {
       return Response.json({ predictions: normalizePredictionResponse(response) });
     }
 
+    if (parsed.data.mode === "text-search") {
+      const response = await googleJson<GooglePlacesSearchResponse>({
+        url: `${placesBaseUrl}/places:searchText`,
+        body: {
+          textQuery: parsed.data.input,
+          languageCode: "th",
+          regionCode: "TH",
+          maxResultCount: parsed.data.maxResultCount,
+          ...(parsed.data.center
+            ? {
+                locationBias: {
+                  circle: {
+                    center: parsed.data.center,
+                    radius: 50000,
+                  },
+                },
+              }
+            : {}),
+        },
+        fieldMask: placeFields,
+      });
+
+      return Response.json({ places: normalizePlacesSearchResponse(response) });
+    }
+
     if (parsed.data.mode === "route-chargers") {
       const response = await googleJson<GooglePlacesSearchResponse>({
         url: `${placesBaseUrl}/places:searchText`,

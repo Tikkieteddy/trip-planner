@@ -48,6 +48,13 @@ export const autocompleteRequestSchema = z.object({
   center: latLngSchema.optional(),
 });
 
+export const textSearchRequestSchema = z.object({
+  mode: z.literal("text-search"),
+  input: z.string().trim().min(2).max(160),
+  center: latLngSchema.optional(),
+  maxResultCount: z.number().int().min(1).max(10).default(5),
+});
+
 export const routeChargersRequestSchema = z.object({
   mode: z.literal("route-chargers"),
   encodedPolyline: z.string().min(12).max(20000),
@@ -69,6 +76,7 @@ export const nearbyRequestSchema = z.object({
 
 export const placesRequestSchema = z.discriminatedUnion("mode", [
   autocompleteRequestSchema,
+  textSearchRequestSchema,
   routeChargersRequestSchema,
   nearbyRequestSchema,
 ]);
