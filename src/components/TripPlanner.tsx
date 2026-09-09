@@ -311,6 +311,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     [origin, route, routeStops, routeWaypoints, settings, terminalDestination],
   );
 
+  const itineraryStops = useMemo(
+    () =>
+      routeStops.length > 0
+        ? routeStops
+        : [origin, ...routeWaypoints, terminalDestination].filter((place): place is PlannerPlace => Boolean(place)),
+    [origin, routeStops, routeWaypoints, terminalDestination],
+  );
+
   const directionsUrl = buildDirectionsUrl(origin, destination, waypoints, settings);
   const setupMenuItems = [
     { key: "trip" as const, label: "ทริป", icon: Car },
@@ -645,7 +653,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   key={item.key}
                   type="button"
                   onClick={() => setActiveSetupPanel(item.key)}
-                  className={`inline-flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[11px] font-black text-primary-deep transition ${
+                  className={`inline-flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[9px] font-black text-primary-deep transition ${
                     selected ? "border-primary bg-yellow shadow-sm" : "border-yellow/60 bg-yellow/70 hover:bg-yellow"
                   }`}
                 >
@@ -901,14 +909,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   key={item.key}
                   type="button"
                   onClick={() => setActivePanel(item.key)}
-                  className={`inline-flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[10px] font-black text-primary-deep transition ${
+                  className={`inline-flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[8px] font-black text-primary-deep transition ${
                     selected ? "border-primary bg-yellow shadow-sm" : "border-yellow/60 bg-yellow/70 hover:bg-yellow"
                   }`}
                 >
                   <Icon className="size-3.5 shrink-0" aria-hidden="true" />
                   <span className="truncate">{item.label}</span>
                   {typeof item.count === "number" ? (
-                    <span className={`shrink-0 rounded px-1 py-0.5 text-[10px] ${selected ? "bg-primary text-yellow" : "bg-white/70 text-primary-deep"}`}>{item.count}</span>
+                    <span className={`shrink-0 rounded px-1 py-0.5 text-[8px] ${selected ? "bg-primary text-yellow" : "bg-white/70 text-primary-deep"}`}>{item.count}</span>
                   ) : null}
                 </button>
               );
@@ -917,7 +925,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
           <section className={`${activePanel === "route" || activePanel === "itinerary" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-black text-primary-deep">Trip Itinerary</h2>
+              <h2 className="text-lg font-black text-primary-deep">{activePanel === "itinerary" ? "รายการเดินทาง" : "วางแผนเส้นทาง"}</h2>
               <a
                 href={directionsUrl}
                 target="_blank"
@@ -928,60 +936,96 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 <ExternalLink className="size-3.5" />
               </a>
             </div>
-            <div className="mt-4 space-y-3">
-              {origin ? (
-                <div className="rounded-lg border border-success/20 bg-green-50 p-3">
-                  <p className="text-xs font-black text-success">เริ่มต้น</p>
-                  <p className="mt-1 text-sm font-black text-primary-deep">{origin.name}</p>
-                </div>
-              ) : (
-                <p className="rounded-lg border border-dashed border-border p-3 text-sm font-bold text-muted">ยังไม่ได้เลือกต้นทาง</p>
-              )}
-
-              {waypoints.map((place, index) => (
-                <div key={`${place.id}-${index}`} className="rounded-lg border border-border bg-white p-3 shadow-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-black text-warning">จุดแวะ {index + 1}</p>
-                      <p className="mt-1 text-sm font-black leading-5 text-primary-deep">{place.name}</p>
-                      <p className="mt-1 text-xs font-semibold text-muted">
-                        พัก {place.stopMinutes ?? 45} นาที
-                        {place.chargeTargetPercent ? ` / ชาร์จถึง ${place.chargeTargetPercent}%` : ""}
-                      </p>
+            {activePanel === "route" ? (
+              <>
+                <div className="mt-4 space-y-3">
+                  {origin ? (
+                    <div className="rounded-lg border border-success/20 bg-green-50 p-3">
+                      <p className="text-xs font-black text-success">เริ่มต้น</p>
+                      <p className="mt-1 text-sm font-black text-primary-deep">{origin.name}</p>
                     </div>
-                    <div className="flex shrink-0 gap-1">
-                      <button type="button" onClick={() => moveWaypoint(index, -1)} className="grid size-8 place-items-center rounded-md border border-border text-primary" aria-label="เลื่อนขึ้น">
-                        <ArrowUp className="size-4" />
-                      </button>
-                      <button type="button" onClick={() => moveWaypoint(index, 1)} className="grid size-8 place-items-center rounded-md border border-border text-primary" aria-label="เลื่อนลง">
-                        <ArrowDown className="size-4" />
-                      </button>
-                      <button type="button" onClick={() => removeWaypoint(index)} className="grid size-8 place-items-center rounded-md border border-border text-danger" aria-label="ลบจุดแวะ">
-                        <Trash2 className="size-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-border p-3 text-sm font-bold text-muted">ยังไม่ได้เลือกต้นทาง</p>
+                  )}
 
-              {destination ? (
-                <div className="rounded-lg border border-danger/20 bg-red-50 p-3">
-                  <p className="text-xs font-black text-danger">{settings.tripType === "round-trip" ? "ปลายทางหลักก่อนกลับต้นทาง" : "ปลายทาง"}</p>
-                  <p className="mt-1 text-sm font-black text-primary-deep">{destination.name}</p>
+                  {waypoints.map((place, index) => (
+                    <div key={`${place.id}-${index}`} className="rounded-lg border border-border bg-white p-3 shadow-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-black text-warning">จุดแวะ {index + 1}</p>
+                          <p className="mt-1 text-sm font-black leading-5 text-primary-deep">{place.name}</p>
+                          <p className="mt-1 text-xs font-semibold text-muted">
+                            พัก {place.stopMinutes ?? 45} นาที
+                            {place.chargeTargetPercent ? ` / ชาร์จถึง ${place.chargeTargetPercent}%` : ""}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <button type="button" onClick={() => moveWaypoint(index, -1)} className="grid size-8 place-items-center rounded-md border border-border text-primary" aria-label="เลื่อนขึ้น">
+                            <ArrowUp className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => moveWaypoint(index, 1)} className="grid size-8 place-items-center rounded-md border border-border text-primary" aria-label="เลื่อนลง">
+                            <ArrowDown className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => removeWaypoint(index)} className="grid size-8 place-items-center rounded-md border border-border text-danger" aria-label="ลบจุดแวะ">
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {destination ? (
+                    <div className="rounded-lg border border-danger/20 bg-red-50 p-3">
+                      <p className="text-xs font-black text-danger">{settings.tripType === "round-trip" ? "ปลายทางหลักก่อนกลับต้นทาง" : "ปลายทาง"}</p>
+                      <p className="mt-1 text-sm font-black text-primary-deep">{destination.name}</p>
+                    </div>
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-border p-3 text-sm font-bold text-muted">ยังไม่ได้เลือกปลายทาง</p>
+                  )}
                 </div>
-              ) : (
-                <p className="rounded-lg border border-dashed border-border p-3 text-sm font-bold text-muted">ยังไม่ได้เลือกปลายทาง</p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => void calculateRoute()}
-              disabled={routeLoading}
-              className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-primary px-3 text-sm font-black text-primary hover:bg-primary-soft disabled:opacity-60"
-            >
-              <RotateCcw className="size-4" />
-              คำนวณเส้นทางใหม่
-            </button>
+                <button
+                  type="button"
+                  onClick={() => void calculateRoute()}
+                  disabled={routeLoading}
+                  className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-primary px-3 text-sm font-black text-primary hover:bg-primary-soft disabled:opacity-60"
+                >
+                  <RotateCcw className="size-4" />
+                  คำนวณเส้นทางใหม่
+                </button>
+              </>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {itineraryStops.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border p-4 text-sm font-bold leading-6 text-muted">
+                    เลือกต้นทางและปลายทางก่อน ระบบจะแสดงลำดับการเดินทางในหน้านี้
+                  </p>
+                ) : (
+                  itineraryStops.map((place, index) => {
+                    const leg = route?.legs[index - 1];
+
+                    return (
+                      <div key={`${place.id}-itinerary-${index}`} className="rounded-lg border border-border bg-white p-3 shadow-sm">
+                        <p className="text-xs font-black text-muted">ลำดับ {index + 1}</p>
+                        <p className="mt-1 text-sm font-black leading-5 text-primary-deep">{place.name}</p>
+                        {place.address ? <p className="mt-1 text-xs font-semibold leading-5 text-muted">{place.address}</p> : null}
+                        {leg ? (
+                          <p className="mt-2 rounded-md bg-primary-soft px-2 py-1 text-xs font-black text-primary">
+                            จากจุดก่อนหน้า {formatDistance(leg.distanceMeters)} / {formatDuration(leg.duration)}
+                          </p>
+                        ) : index === 0 ? (
+                          <p className="mt-2 rounded-md bg-green-50 px-2 py-1 text-xs font-black text-success">จุดเริ่มต้น</p>
+                        ) : null}
+                      </div>
+                    );
+                  })
+                )}
+                {!route && itineraryStops.length > 1 ? (
+                  <p className="rounded-lg border border-dashed border-border p-3 text-xs font-bold leading-5 text-muted">
+                    รายการนี้เป็นลำดับแผนคร่าวๆ กดคำนวณเส้นทางเพื่อเติมระยะทางและเวลาแต่ละช่วง
+                  </p>
+                ) : null}
+              </div>
+            )}
           </section>
 
           <section className={`${activePanel === "chargers" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
