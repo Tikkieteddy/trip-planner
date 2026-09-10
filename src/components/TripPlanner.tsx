@@ -50,6 +50,7 @@ type PlannerSetupKey = "trip" | "vehicle" | "filters";
 type PlannerMenuKey = "route" | "itinerary" | "chargers" | "nearby" | "vehicle";
 
 const storageKey = "tikkie-trip-v1";
+const routeChargerPolylineLimit = 20000;
 
 const defaultSettings: TripSettings = {
   profileName: "BYD Dolphin Extended Range",
@@ -266,6 +267,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [routeStops, setRouteStops] = useState<PlannerPlace[]>([]);
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [chargers, setChargers] = useState<PlannerPlace[]>([]);
+  const [chargerNotice, setChargerNotice] = useState("");
   const [nearbyPlaces, setNearbyPlaces] = useState<PlannerPlace[]>([]);
   const [tourismCenter, setTourismCenter] = useState<PlannerPlace | null>(null);
   const [tourismCategory, setTourismCategory] = useState<TourismCategory>(tourismCategories[0]);
@@ -361,6 +363,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     setRoute(null);
     setRouteStops([]);
     setChargers([]);
+    setChargerNotice("");
     setNearbyPlaces([]);
   }
 
@@ -442,11 +445,51 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     clearComputedData();
   }
 
-  async function searchChargingStations(encodedPolyline: string) {
+  function getFallbackChargerCenters(stops: PlannerPlace[]) {
+    if (stops.length <= 4) {
+      return uniquePlaces(stops);
+    }
+
+    return uniquePlaces([stops[0], stops[Math.floor(stops.length / 2)], stops[stops.length - 1]].filter(Boolean));
+  }
+
+  async function searchNearbyChargersFallback(centers: PlannerPlace[]) {
+    const results = await Promise.allSettled(
+      centers.map((center) =>
+        postJson<PlacesResponse>("/api/places", {
+          mode: "nearby",
+          center: center.location,
+          radiusKm: 30,
+          includedTypes: ["electric_vehicle_charging_station"],
+          maxResultCount: 6,
+          rankPreference: "DISTANCE",
+        }),
+      ),
+    );
+    const places = results.flatMap((result) => (result.status === "fulfilled" ? result.value.places : []));
+
+    return uniquePlaces(places).slice(0, Math.max(1, Math.min(20, settings.maxStops + 4)));
+  }
+
+  async function searchChargingStations(encodedPolyline: string, stops: PlannerPlace[]) {
     setPlacesLoading(true);
-    setError("");
+    setChargerNotice("");
 
     try {
+      if (encodedPolyline.length > routeChargerPolylineLimit) {
+        const fallbackChargers = await searchNearbyChargersFallback(getFallbackChargerCenters(stops));
+        const notice = "เส้นทางยาวมาก ระบบจึงค้นหาสถานีชาร์จใกล้ต้นทาง จุดแวะ และปลายทางแทน";
+
+        setChargers(fallbackChargers);
+        setChargerNotice(notice);
+        setStatus(
+          fallbackChargers.length > 0
+            ? `พบสถานีชาร์จสำรอง ${fallbackChargers.length} แห่งใกล้จุดสำคัญของทริป`
+            : "คำนวณเส้นทางสำเร็จ แต่ยังไม่พบสถานีชาร์จใกล้จุดสำคัญของทริป",
+        );
+        return;
+      }
+
       const response = await postJson<PlacesResponse>("/api/places", {
         mode: "route-chargers",
         encodedPolyline,
@@ -465,7 +508,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       }
     } catch (fetchError) {
       setChargers([]);
-      setError(fetchError instanceof Error ? fetchError.message : "ค้นหาสถานีชาร์จไม่สำเร็จ");
+      setChargerNotice(fetchError instanceof Error ? fetchError.message : "ค้นหาสถานีชาร์จไม่สำเร็จ");
+      setStatus("คำนวณเส้นทางสำเร็จ แต่ค้นหาสถานีชาร์จตามเส้นทางไม่สำเร็จ");
     } finally {
       setPlacesLoading(false);
     }
@@ -518,7 +562,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       const computedStops = [origin, ...orderedWaypoints, requestDestination];
       setRoute(response.route);
       setRouteStops(computedStops);
-      await searchChargingStations(response.route.encodedPolyline);
+      await searchChargingStations(response.route.encodedPolyline, computedStops);
     } catch (fetchError) {
       setRoute(null);
       setRouteStops([]);
@@ -1121,6 +1165,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           <section className={`${activePanel === "chargers" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">สถานีชาร์จตามเส้นทาง</h2>
             <div className="mt-3 space-y-3">
+              {chargerNotice ? (
+                <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm font-bold leading-6 text-primary-deep">
+                  <Info className="mr-2 inline size-4 text-primary" aria-hidden="true" />
+                  {chargerNotice}
+                </div>
+              ) : null}
               {placesLoading && chargers.length === 0 ? (
                 <div className="rounded-lg border border-border bg-primary-soft p-4 text-sm font-black text-primary">
                   <LoaderCircle className="mr-2 inline size-4 animate-spin" />
@@ -1128,7 +1178,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 </div>
               ) : chargers.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border p-4 text-sm font-bold leading-6 text-muted">
-                  หลังคำนวณเส้นทาง ระบบจะค้นหา `electric_vehicle_charging_station` ตาม encoded polyline จาก Routes API
+                  หลังคำนวณเส้นทาง ระบบจะค้นหาสถานีชาร์จตามเส้นทาง หรือค้นหาใกล้จุดสำคัญของทริปเมื่อเส้นทางยาวมาก
                 </p>
               ) : (
                 chargers.map((place) => (
