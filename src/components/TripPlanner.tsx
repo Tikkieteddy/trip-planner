@@ -28,6 +28,7 @@ import { connectorLabel, connectorOptions, nearbyActivityTypes, tourismCategorie
 import { estimateBatteryByLegs, batterySummaryText } from "@/lib/battery";
 import { postJson } from "@/lib/client-api";
 import { formatDistance, formatDuration, formatKwh, formatPercent, getDepartureIso } from "@/lib/format";
+import { splitEncodedPolyline } from "@/lib/polyline";
 import { savedTripSchema } from "@/lib/schemas";
 import type { BatteryLegEstimate, PlannerPlace, RouteResult, SavedTrip, TourismCategory, TripSettings } from "@/types/trip";
 import { GoogleMapPanel } from "@/components/GoogleMapPanel";
@@ -50,7 +51,8 @@ type PlannerSetupKey = "trip" | "vehicle" | "filters";
 type PlannerMenuKey = "route" | "itinerary" | "chargers" | "nearby" | "vehicle";
 
 const storageKey = "tikkie-trip-v1";
-const routeChargerPolylineLimit = 20000;
+const routeChargerPolylineLimit = 18000;
+const routeChargerMaxSegments = 10;
 
 const defaultSettings: TripSettings = {
   profileName: "BYD Dolphin Extended Range",
@@ -471,14 +473,58 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     return uniquePlaces(places).slice(0, Math.max(1, Math.min(20, settings.maxStops + 4)));
   }
 
+  async function searchRouteChargersByPolyline(encodedPolyline: string) {
+    const maxResultCount = Math.max(1, Math.min(20, settings.maxStops + 4));
+    const segments = splitEncodedPolyline(encodedPolyline, routeChargerPolylineLimit, routeChargerMaxSegments);
+    const perSegmentResultCount = Math.max(3, Math.min(10, Math.ceil(maxResultCount / segments.length) + 2));
+    const results = await Promise.allSettled(
+      segments.map((segment) =>
+        postJson<PlacesResponse>("/api/places", {
+          mode: "route-chargers",
+          encodedPolyline: segment,
+          connectorType: settings.connectorType,
+          minChargerKw: settings.minChargerKw,
+          openNowOnly: settings.openNowOnly,
+          minRating: settings.minRating,
+          maxResultCount: perSegmentResultCount,
+        }),
+      ),
+    );
+    const places = results.flatMap((result) => (result.status === "fulfilled" ? result.value.places : []));
+    const failedCount = results.filter((result) => result.status === "rejected").length;
+
+    return {
+      places: uniquePlaces(places).slice(0, maxResultCount),
+      segmentCount: segments.length,
+      failedCount,
+    };
+  }
+
   async function searchChargingStations(encodedPolyline: string, stops: PlannerPlace[]) {
     setPlacesLoading(true);
     setChargerNotice("");
 
     try {
+      const routeChargerResult = await searchRouteChargersByPolyline(encodedPolyline);
+
+      if (routeChargerResult.places.length > 0) {
+        const segmentedNotice =
+          routeChargerResult.segmentCount > 1
+            ? `เส้นทางยาว ระบบแบ่งค้นหาสถานีชาร์จตามแนวเส้นทางเป็น ${routeChargerResult.segmentCount} ช่วง`
+            : "";
+        const partialNotice =
+          routeChargerResult.failedCount > 0 ? ` บางช่วงค้นหาไม่สำเร็จ ${routeChargerResult.failedCount} ช่วง` : "";
+
+        setChargers(routeChargerResult.places);
+        setChargerNotice(`${segmentedNotice}${partialNotice}`.trim());
+        setStatus(`พบสถานีชาร์จตามแนวเส้นทาง ${routeChargerResult.places.length} แห่ง`);
+        return;
+      }
+
       if (encodedPolyline.length > routeChargerPolylineLimit) {
         const fallbackChargers = await searchNearbyChargersFallback(getFallbackChargerCenters(stops));
-        const notice = "เส้นทางยาวมาก ระบบจึงค้นหาสถานีชาร์จใกล้ต้นทาง จุดแวะ และปลายทางแทน";
+        const notice =
+          "แบ่งเส้นทางค้นหาตามแนวถนนแล้ว แต่ยังไม่พบสถานีชาร์จ ระบบจึงค้นหาใกล้ต้นทาง จุดแวะ และปลายทางแทน";
 
         setChargers(fallbackChargers);
         setChargerNotice(notice);
@@ -490,22 +536,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         return;
       }
 
-      const response = await postJson<PlacesResponse>("/api/places", {
-        mode: "route-chargers",
-        encodedPolyline,
-        connectorType: settings.connectorType,
-        minChargerKw: settings.minChargerKw,
-        openNowOnly: settings.openNowOnly,
-        minRating: settings.minRating,
-        maxResultCount: Math.max(1, Math.min(20, settings.maxStops + 4)),
-      });
-      setChargers(response.places);
-
-      if (response.places.length === 0) {
-        setStatus("Google Places ไม่พบสถานีชาร์จตามแนวเส้นทางนี้");
-      } else {
-        setStatus(`พบสถานีชาร์จตามแนวเส้นทาง ${response.places.length} แห่ง`);
-      }
+      setChargers([]);
+      setStatus("Google Places ไม่พบสถานีชาร์จตามแนวเส้นทางนี้");
     } catch (fetchError) {
       setChargers([]);
       setChargerNotice(fetchError instanceof Error ? fetchError.message : "ค้นหาสถานีชาร์จไม่สำเร็จ");
