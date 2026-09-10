@@ -19,6 +19,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  Star,
   Trash2,
   Upload,
   Zap,
@@ -28,9 +29,9 @@ import { connectorLabel, connectorOptions, nearbyActivityTypes, tourismCategorie
 import { estimateBatteryByLegs, batterySummaryText } from "@/lib/battery";
 import { postJson } from "@/lib/client-api";
 import { formatDistance, formatDuration, formatKwh, formatPercent, getDepartureIso } from "@/lib/format";
-import { splitEncodedPolyline } from "@/lib/polyline";
+import { decodePolyline, splitEncodedPolyline } from "@/lib/polyline";
 import { savedTripSchema } from "@/lib/schemas";
-import type { BatteryLegEstimate, PlannerPlace, RouteResult, SavedTrip, TourismCategory, TripSettings } from "@/types/trip";
+import type { BatteryLegEstimate, LatLng, PlannerPlace, RouteResult, SavedTrip, TourismCategory, TripSettings } from "@/types/trip";
 import { GoogleMapPanel } from "@/components/GoogleMapPanel";
 import { PlaceSearchInput } from "@/components/PlaceSearchInput";
 
@@ -49,10 +50,12 @@ type PlacesResponse = {
 
 type PlannerSetupKey = "trip" | "vehicle" | "filters";
 type PlannerMenuKey = "route" | "itinerary" | "chargers" | "nearby" | "vehicle";
+type ChargerSortKey = "route" | "speed" | "rating";
 
 const storageKey = "tikkie-trip-v1";
 const routeChargerPolylineLimit = 18000;
 const routeChargerMaxSegments = 10;
+const earthRadiusMeters = 6371000;
 
 const defaultSettings: TripSettings = {
   profileName: "BYD Dolphin Extended Range",
@@ -128,6 +131,43 @@ function getRiskClass(risk: BatteryLegEstimate["risk"]) {
   return "border-danger/25 bg-red-50 text-danger";
 }
 
+function getMaxChargeRateKw(place: PlannerPlace) {
+  return Math.max(0, ...(place.evChargeOptions?.connectorAggregation?.map((item) => item.maxChargeRateKw ?? 0) ?? [0]));
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function getDistanceMeters(from: LatLng, to: LatLng) {
+  const latitudeDelta = toRadians(to.latitude - from.latitude);
+  const longitudeDelta = toRadians(to.longitude - from.longitude);
+  const fromLatitude = toRadians(from.latitude);
+  const toLatitude = toRadians(to.latitude);
+  const halfChord =
+    Math.sin(latitudeDelta / 2) ** 2 + Math.cos(fromLatitude) * Math.cos(toLatitude) * Math.sin(longitudeDelta / 2) ** 2;
+
+  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(halfChord), Math.sqrt(1 - halfChord));
+}
+
+function sampleRoutePoints(points: LatLng[], maxPoints = 800) {
+  if (points.length <= maxPoints) {
+    return points;
+  }
+
+  const step = Math.ceil(points.length / maxPoints);
+
+  return points.filter((_, index) => index % step === 0 || index === points.length - 1);
+}
+
+function getDistanceToRouteMeters(place: PlannerPlace, routePoints: LatLng[]) {
+  if (routePoints.length === 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return routePoints.reduce((nearest, point) => Math.min(nearest, getDistanceMeters(place.location, point)), Number.POSITIVE_INFINITY);
+}
+
 function NumberField({
   label,
   value,
@@ -191,11 +231,15 @@ function PlaceListCard({
   actionLabel,
   onAction,
   onNearby,
+  metricLabel,
+  metricValue,
 }: {
   place: PlannerPlace;
   actionLabel: string;
   onAction: () => void;
   onNearby?: () => void;
+  metricLabel?: string;
+  metricValue?: string;
 }) {
   const connectorInfo = place.evChargeOptions?.connectorAggregation?.[0];
 
@@ -211,6 +255,12 @@ function PlaceListCard({
         </span>
       </div>
       <dl className="mt-3 grid gap-2 text-xs font-semibold text-muted sm:grid-cols-2">
+        {metricLabel && metricValue ? (
+          <div>
+            <dt className="font-black text-primary-deep">{metricLabel}</dt>
+            <dd>{metricValue}</dd>
+          </div>
+        ) : null}
         <div>
           <dt className="font-black text-primary-deep">สถานะ</dt>
           <dd>{place.openNow === null || place.openNow === undefined ? "ไม่มีข้อมูลจากผู้ให้บริการ" : place.openNow ? "เปิดอยู่" : "ปิดอยู่"}</dd>
@@ -270,6 +320,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [chargers, setChargers] = useState<PlannerPlace[]>([]);
   const [chargerNotice, setChargerNotice] = useState("");
+  const [chargerSort, setChargerSort] = useState<ChargerSortKey>("route");
   const [nearbyPlaces, setNearbyPlaces] = useState<PlannerPlace[]>([]);
   const [tourismCenter, setTourismCenter] = useState<PlannerPlace | null>(null);
   const [tourismCategory, setTourismCategory] = useState<TourismCategory>(tourismCategories[0]);
@@ -353,6 +404,58 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     { key: "nearby" as const, label: "ที่แวะใกล้เคียง", icon: MapPinned, count: nearbyPlaces.length },
     { key: "vehicle" as const, label: "รถ/บันทึก", icon: Car, count: null },
   ];
+  const chargerSortItems = [
+    { key: "route" as const, label: "ใกล้เส้นทาง", icon: MapPinned },
+    { key: "speed" as const, label: "ชาร์จเร็ว", icon: Zap },
+    { key: "rating" as const, label: "คะแนนสูง", icon: Star },
+  ];
+  const routeSamplePoints = useMemo(() => (route?.encodedPolyline ? sampleRoutePoints(decodePolyline(route.encodedPolyline)) : []), [route?.encodedPolyline]);
+  const sortedChargers = useMemo(() => {
+    return [...chargers].sort((first, second) => {
+      if (chargerSort === "speed") {
+        return getMaxChargeRateKw(second) - getMaxChargeRateKw(first) || (second.rating ?? 0) - (first.rating ?? 0);
+      }
+
+      if (chargerSort === "rating") {
+        return (
+          (second.rating ?? 0) - (first.rating ?? 0) ||
+          (second.userRatingCount ?? 0) - (first.userRatingCount ?? 0) ||
+          getMaxChargeRateKw(second) - getMaxChargeRateKw(first)
+        );
+      }
+
+      return (
+        getDistanceToRouteMeters(first, routeSamplePoints) - getDistanceToRouteMeters(second, routeSamplePoints) ||
+        getMaxChargeRateKw(second) - getMaxChargeRateKw(first) ||
+        (second.rating ?? 0) - (first.rating ?? 0)
+      );
+    });
+  }, [chargerSort, chargers, routeSamplePoints]);
+
+  function getChargerMetric(place: PlannerPlace) {
+    if (chargerSort === "speed") {
+      const maxChargeRate = getMaxChargeRateKw(place);
+
+      return {
+        label: "กำลังชาร์จ",
+        value: maxChargeRate > 0 ? `${maxChargeRate} kW` : "ไม่มีข้อมูลจากผู้ให้บริการ",
+      };
+    }
+
+    if (chargerSort === "rating") {
+      return {
+        label: "คะแนน",
+        value: place.rating ? `${place.rating.toFixed(1)} ดาว / ${place.userRatingCount?.toLocaleString("th-TH") ?? 0} รีวิว` : "ไม่มีคะแนน",
+      };
+    }
+
+    const distanceToRoute = getDistanceToRouteMeters(place, routeSamplePoints);
+
+    return {
+      label: "ใกล้เส้นทาง",
+      value: Number.isFinite(distanceToRoute) ? formatDistance(distanceToRoute) : "ยังไม่มีเส้นทาง",
+    };
+  }
 
   function updateSetting<TKey extends keyof TripSettings>(key: TKey, value: TripSettings[TKey]) {
     setSettings((current) => ({
@@ -1197,6 +1300,31 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           <section className={`${activePanel === "chargers" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">สถานีชาร์จตามเส้นทาง</h2>
             <div className="mt-3 space-y-3">
+              {chargers.length > 1 ? (
+                <div className="rounded-lg border border-border bg-surface-strong p-2">
+                  <p className="px-1 pb-2 text-xs font-black text-primary-deep">จัดอันดับจุดชาร์จ</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {chargerSortItems.map((item) => {
+                      const SortIcon = item.icon;
+                      const active = chargerSort === item.key;
+
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => setChargerSort(item.key)}
+                          className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border px-2 text-[11px] font-black ${
+                            active ? "border-primary bg-yellow text-primary-deep" : "border-yellow/80 bg-yellow/70 text-primary-deep hover:border-primary"
+                          }`}
+                        >
+                          <SortIcon className="size-3.5 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
               {chargerNotice ? (
                 <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm font-bold leading-6 text-primary-deep">
                   <Info className="mr-2 inline size-4 text-primary" aria-hidden="true" />
@@ -1213,15 +1341,21 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   หลังคำนวณเส้นทาง ระบบจะค้นหาสถานีชาร์จตามเส้นทาง หรือค้นหาใกล้จุดสำคัญของทริปเมื่อเส้นทางยาวมาก
                 </p>
               ) : (
-                chargers.map((place) => (
-                  <PlaceListCard
-                    key={place.id}
-                    place={place}
-                    actionLabel="เพิ่มเป็นจุดชาร์จ"
-                    onAction={() => addWaypoint(place)}
-                    onNearby={() => void searchNearby(place, nearbyActivityTypes, 2)}
-                  />
-                ))
+                sortedChargers.map((place) => {
+                  const metric = getChargerMetric(place);
+
+                  return (
+                    <PlaceListCard
+                      key={place.id}
+                      place={place}
+                      actionLabel="เพิ่มเป็นจุดชาร์จ"
+                      metricLabel={metric.label}
+                      metricValue={metric.value}
+                      onAction={() => addWaypoint(place)}
+                      onNearby={() => void searchNearby(place, nearbyActivityTypes, 2)}
+                    />
+                  );
+                })
               )}
             </div>
           </section>
