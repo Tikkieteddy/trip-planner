@@ -233,6 +233,7 @@ function PlaceListCard({
   onNearby,
   metricLabel,
   metricValue,
+  recommendationReason,
 }: {
   place: PlannerPlace;
   actionLabel: string;
@@ -240,6 +241,7 @@ function PlaceListCard({
   onNearby?: () => void;
   metricLabel?: string;
   metricValue?: string;
+  recommendationReason?: string;
 }) {
   const connectorInfo = place.evChargeOptions?.connectorAggregation?.[0];
 
@@ -278,6 +280,11 @@ function PlaceListCard({
           <dd>{connectorInfo?.maxChargeRateKw ? `${connectorInfo.maxChargeRateKw} kW` : "ไม่มีข้อมูลจากผู้ให้บริการ"}</dd>
         </div>
       </dl>
+      {recommendationReason ? (
+        <p className="mt-3 rounded-lg border border-yellow/60 bg-yellow/25 px-3 py-2 text-xs font-black leading-5 text-primary-deep">
+          เหตุผลแนะนำ: {recommendationReason}
+        </p>
+      ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
@@ -455,6 +462,18 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       label: "ใกล้เส้นทาง",
       value: Number.isFinite(distanceToRoute) ? formatDistance(distanceToRoute) : "ยังไม่มีเส้นทาง",
     };
+  }
+
+  function getChargerRecommendationReason(place: PlannerPlace) {
+    const distanceToRoute = getDistanceToRouteMeters(place, routeSamplePoints);
+    const distanceText = Number.isFinite(distanceToRoute) ? formatDistance(distanceToRoute) : "ยังไม่มีเส้นทาง";
+    const maxChargeRate = getMaxChargeRateKw(place);
+    const speedText = maxChargeRate > 0 ? `${maxChargeRate} kW` : "ไม่มีข้อมูล kW";
+    const ratingText = place.rating
+      ? `${place.rating.toFixed(1)} ดาว / ${place.userRatingCount?.toLocaleString("th-TH") ?? 0} รีวิว`
+      : "ไม่มีคะแนน";
+
+    return `ใกล้เส้นทาง ${distanceText} / ชาร์จเร็ว ${speedText} / คะแนน ${ratingText}`;
   }
 
   function updateSetting<TKey extends keyof TripSettings>(key: TKey, value: TripSettings[TKey]) {
@@ -1351,6 +1370,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                       actionLabel="เพิ่มเป็นจุดชาร์จ"
                       metricLabel={metric.label}
                       metricValue={metric.value}
+                      recommendationReason={getChargerRecommendationReason(place)}
                       onAction={() => addWaypoint(place)}
                       onNearby={() => void searchNearby(place, nearbyActivityTypes, 2)}
                     />
