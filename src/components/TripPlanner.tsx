@@ -51,6 +51,10 @@ type PlacesResponse = {
 type PlannerSetupKey = "trip" | "vehicle" | "filters";
 type PlannerMenuKey = "route" | "itinerary" | "chargers" | "nearby" | "vehicle";
 type ChargerSortKey = "route" | "speed" | "rating";
+type RecommendationBadge = {
+  label: string;
+  value: string;
+};
 
 const storageKey = "tikkie-trip-v1";
 const routeChargerPolylineLimit = 18000;
@@ -233,7 +237,7 @@ function PlaceListCard({
   onNearby,
   metricLabel,
   metricValue,
-  recommendationReason,
+  recommendationBadges,
 }: {
   place: PlannerPlace;
   actionLabel: string;
@@ -241,7 +245,7 @@ function PlaceListCard({
   onNearby?: () => void;
   metricLabel?: string;
   metricValue?: string;
-  recommendationReason?: string;
+  recommendationBadges?: RecommendationBadge[];
 }) {
   const connectorInfo = place.evChargeOptions?.connectorAggregation?.[0];
 
@@ -280,10 +284,18 @@ function PlaceListCard({
           <dd>{connectorInfo?.maxChargeRateKw ? `${connectorInfo.maxChargeRateKw} kW` : "ไม่มีข้อมูลจากผู้ให้บริการ"}</dd>
         </div>
       </dl>
-      {recommendationReason ? (
-        <p className="mt-3 rounded-lg border border-yellow/60 bg-yellow/25 px-3 py-2 text-xs font-black leading-5 text-primary-deep">
-          เหตุผลแนะนำ: {recommendationReason}
-        </p>
+      {recommendationBadges?.length ? (
+        <div className="mt-3 rounded-lg border border-yellow/60 bg-yellow/20 p-2">
+          <p className="px-1 pb-2 text-xs font-black text-primary-deep">เหตุผลแนะนำ</p>
+          <div className="grid grid-cols-3 gap-2">
+            {recommendationBadges.map((badge) => (
+              <div key={badge.label} className="min-w-0 rounded-md border border-yellow/70 bg-white px-2 py-2 text-center shadow-sm">
+                <p className="truncate text-[10px] font-black text-muted">{badge.label}</p>
+                <p className="mt-1 break-words text-[11px] font-black leading-4 text-primary-deep">{badge.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
         <button
@@ -464,16 +476,18 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     };
   }
 
-  function getChargerRecommendationReason(place: PlannerPlace) {
+  function getChargerRecommendationBadges(place: PlannerPlace): RecommendationBadge[] {
     const distanceToRoute = getDistanceToRouteMeters(place, routeSamplePoints);
     const distanceText = Number.isFinite(distanceToRoute) ? formatDistance(distanceToRoute) : "ยังไม่มีเส้นทาง";
     const maxChargeRate = getMaxChargeRateKw(place);
     const speedText = maxChargeRate > 0 ? `${maxChargeRate} kW` : "ไม่มีข้อมูล kW";
-    const ratingText = place.rating
-      ? `${place.rating.toFixed(1)} ดาว / ${place.userRatingCount?.toLocaleString("th-TH") ?? 0} รีวิว`
-      : "ไม่มีคะแนน";
+    const ratingText = place.rating ? `${place.rating.toFixed(1)} ดาว` : "ไม่มีคะแนน";
 
-    return `ใกล้เส้นทาง ${distanceText} / ชาร์จเร็ว ${speedText} / คะแนน ${ratingText}`;
+    return [
+      { label: "ใกล้ทาง", value: distanceText },
+      { label: "kW", value: speedText },
+      { label: "คะแนน", value: ratingText },
+    ];
   }
 
   function updateSetting<TKey extends keyof TripSettings>(key: TKey, value: TripSettings[TKey]) {
@@ -1370,7 +1384,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                       actionLabel="เพิ่มเป็นจุดชาร์จ"
                       metricLabel={metric.label}
                       metricValue={metric.value}
-                      recommendationReason={getChargerRecommendationReason(place)}
+                      recommendationBadges={getChargerRecommendationBadges(place)}
                       onAction={() => addWaypoint(place)}
                       onNearby={() => void searchNearby(place, nearbyActivityTypes, 2)}
                     />
