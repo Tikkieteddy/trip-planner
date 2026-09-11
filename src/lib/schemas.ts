@@ -102,7 +102,7 @@ export const tripSettingsSchema = z.object({
   departureTime: z.string().min(4).max(8),
   tripType: z.enum(["one-way", "round-trip"]),
   days: z.number().int().min(1).max(7),
-  batteryStartPercent: z.number().min(1).max(100),
+  batteryStartPercent: z.number().min(0).max(100),
   reservePercent: z.number().min(0).max(80),
   batteryCapacityKwh: z.number().min(10).max(250),
   efficiencyKmPerKwh: z.number().min(1).max(15),

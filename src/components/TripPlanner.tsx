@@ -536,6 +536,13 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     }));
   }
 
+  function updateStartingRangeKm(remainingRangeKm: number) {
+    const safeRangeKm = Math.min(Math.max(remainingRangeKm, 0), settings.maxRangeKm);
+    const batteryStartPercent = settings.maxRangeKm > 0 ? (safeRangeKm / settings.maxRangeKm) * 100 : 0;
+
+    updateSetting("batteryStartPercent", Math.round(batteryStartPercent * 10) / 10);
+  }
+
   function clearComputedData() {
     setRoute(null);
     setRouteStops([]);
@@ -1056,13 +1063,25 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               ค่า 7.8 km/kWh เป็นค่าประมาณสำหรับใช้งานส่วนบุคคล ผู้ใช้ควรแก้ให้ตรงกับรถ น้ำหนักบรรทุก และพฤติกรรมขับขี่จริง
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <NumberField label="แบตเริ่มต้น" value={settings.batteryStartPercent} min={1} max={100} unit="%" onChange={(value) => updateSetting("batteryStartPercent", value)} />
+              <NumberField label="แบตเริ่มต้น" value={settings.batteryStartPercent} min={0} max={100} step={0.1} unit="%" onChange={(value) => updateSetting("batteryStartPercent", value)} />
+              <NumberField
+                label="ระยะคงเหลือ"
+                value={Math.round((settings.batteryStartPercent / 100) * settings.maxRangeKm * 10) / 10}
+                min={0}
+                max={settings.maxRangeKm}
+                step={0.1}
+                unit="กม."
+                onChange={updateStartingRangeKm}
+              />
               <NumberField label="แบตสำรองขั้นต่ำ" value={settings.reservePercent} min={0} max={80} unit="%" onChange={(value) => updateSetting("reservePercent", value)} />
               <NumberField label="ความจุแบต" value={settings.batteryCapacityKwh} min={10} max={250} step={0.1} unit="kWh" onChange={(value) => updateSetting("batteryCapacityKwh", value)} />
               <NumberField label="ประสิทธิภาพ" value={settings.efficiencyKmPerKwh} min={1} max={15} step={0.1} unit="km/kWh" onChange={(value) => updateSetting("efficiencyKmPerKwh", value)} />
               <NumberField label="ระยะสูงสุด/ชาร์จ" value={settings.maxRangeKm} min={50} max={1200} unit="กม." onChange={(value) => updateSetting("maxRangeKm", value)} />
               <NumberField label="กำลังชาร์จขั้นต่ำ" value={settings.minChargerKw} min={0} max={500} unit="kW" onChange={(value) => updateSetting("minChargerKw", value)} />
             </div>
+            <p className="mt-3 text-xs font-bold leading-5 text-muted">
+              ใส่ได้ทั้งเปอร์เซ็นต์หรือจำนวนกิโลเมตรคงเหลือ ระบบจะคำนวณอีกค่าให้อัตโนมัติจากระยะสูงสุดต่อการชาร์จ
+            </p>
             <label className="mt-3 block">
               <span className="text-xs font-black text-primary-deep">ประเภทหัวชาร์จ</span>
               <select

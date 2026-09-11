@@ -23,6 +23,7 @@ Completed:
 - Fixed both left and right menus above independently scrollable content.
 - Added responsive ad inventory and an authenticated ads admin page.
 - Upgraded Next.js to 16.3.4 and resolved all dependency audit findings.
+- Added linked starting-battery inputs for both percent and remaining driving range in kilometers.
 
 Remaining:
 - Connect Upstash Redis and add the admin password/session secret in Vercel.
