@@ -50,7 +50,15 @@ type PlacesResponse = {
 
 type PlannerSetupKey = "trip" | "vehicle" | "filters";
 type PlannerMenuKey = "route" | "itinerary" | "chargers" | "nearby" | "vehicle";
-type ChargerSortKey = "route" | "speed" | "rating";
+type ChargerSortKey = "route" | "speed" | "rating" | "origin-near" | "origin-far";
+
+const chargerApps = [
+  { pattern: /ev\s*station\s*plu[zส]|อีวี\s*สเตชั่น\s*พลัส/i, name: "EV Station PluZ", url: "https://evstationpluz.pttor.com/th/home" },
+  { pattern: /pea\s*volta|พีอีเอ\s*โวลต้า/i, name: "PEA VOLTA", url: "https://peavoltaev.pea.co.th/วิธีใช้งาน-pea-volta/" },
+  { pattern: /evolt|อีโวลท์/i, name: "EVolt", url: "https://applinks.evolt.co.th/" },
+  { pattern: /ea\s*anywhere|อีเอ\s*เอนี่แวร์/i, name: "EA Anywhere", url: "https://www.eaanywhere.com/help/new/howtoregister" },
+  { pattern: /reversharger|\bsharge\b/i, name: "ReverSharger", url: "https://sharge.co.th/mobile-app" },
+];
 type RecommendationBadge = {
   label: string;
   value: string;
@@ -248,6 +256,7 @@ function PlaceListCard({
   recommendationBadges?: RecommendationBadge[];
 }) {
   const connectorInfo = place.evChargeOptions?.connectorAggregation?.[0];
+  const provider = recommendationBadges ? chargerApps.find((app) => app.pattern.test(place.name)) : undefined;
 
   return (
     <article className="rounded-lg border border-border bg-white p-4 shadow-sm">
@@ -298,6 +307,13 @@ function PlaceListCard({
         </div>
       ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
+        {provider ? (
+          <a href={provider.url} target="_blank" rel="noopener noreferrer"
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-yellow bg-yellow px-3 text-xs font-black text-black">
+            แอป {provider.name}
+            <ExternalLink className="size-3.5 shrink-0" aria-hidden="true" />
+          </a>
+        ) : null}
         <button
           type="button"
           onClick={onAction}
@@ -424,6 +440,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     { key: "vehicle" as const, label: "รถ/บันทึก", icon: Car, count: null },
   ];
   const chargerSortItems = [
+    { key: "origin-near" as const, label: "ใกล้ต้นทางสุด", icon: ArrowUp },
+    { key: "origin-far" as const, label: "ไกลต้นทางสุด", icon: ArrowDown },
     { key: "route" as const, label: "ใกล้เส้นทาง", icon: MapPinned },
     { key: "speed" as const, label: "ชาร์จเร็ว", icon: Zap },
     { key: "rating" as const, label: "คะแนนสูง", icon: Star },
@@ -431,6 +449,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const routeSamplePoints = useMemo(() => (route?.encodedPolyline ? sampleRoutePoints(decodePolyline(route.encodedPolyline)) : []), [route?.encodedPolyline]);
   const sortedChargers = useMemo(() => {
     return [...chargers].sort((first, second) => {
+      if (chargerSort === "origin-near" || chargerSort === "origin-far") {
+        if (!origin) return 0;
+        const difference = getDistanceMeters(origin.location, first.location) - getDistanceMeters(origin.location, second.location);
+        return difference * (chargerSort === "origin-far" ? -1 : 1) || first.name.localeCompare(second.name, "th");
+      }
       if (chargerSort === "speed") {
         return getMaxChargeRateKw(second) - getMaxChargeRateKw(first) || (second.rating ?? 0) - (first.rating ?? 0);
       }
@@ -449,9 +472,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         (second.rating ?? 0) - (first.rating ?? 0)
       );
     });
-  }, [chargerSort, chargers, routeSamplePoints]);
+  }, [chargerSort, chargers, routeSamplePoints, origin]);
 
   function getChargerMetric(place: PlannerPlace) {
+    if (chargerSort === "origin-near" || chargerSort === "origin-far") {
+      return { label: "จากต้นทาง (ทางตรงโดยประมาณ)", value: origin ? formatDistance(getDistanceMeters(origin.location, place.location)) : "ยังไม่ได้เลือกต้นทาง" };
+    }
     if (chargerSort === "speed") {
       const maxChargeRate = getMaxChargeRateKw(place);
 
@@ -1345,13 +1371,15 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                         <button
                           key={item.key}
                           type="button"
+                          aria-pressed={active}
+                          disabled={!origin && (item.key === "origin-near" || item.key === "origin-far")}
                           onClick={() => setChargerSort(item.key)}
                           className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border px-2 text-[11px] font-black ${
                             active ? "border-primary bg-yellow text-primary-deep" : "border-yellow/80 bg-yellow/70 text-primary-deep hover:border-primary"
                           }`}
                         >
                           <SortIcon className="size-3.5 shrink-0" aria-hidden="true" />
-                          <span className="truncate">{item.label}</span>
+                          <span className="whitespace-normal break-words">{item.label}</span>
                         </button>
                       );
                     })}
