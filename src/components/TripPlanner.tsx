@@ -366,6 +366,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [activeSetupPanel, setActiveSetupPanel] = useState<PlannerSetupKey>("trip");
   const [activePanel, setActivePanel] = useState<PlannerMenuKey>("route");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const resultsScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    resultsScrollRef.current?.scrollTo({ top: 0 });
+  }, [activePanel]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(storageKey);
@@ -1193,7 +1198,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           </section>
         </div>
 
-        <aside className="space-y-3 lg:h-full lg:overflow-y-auto lg:pr-1 trip-scrollbar">
+        <aside className="grid h-[80dvh] min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden lg:h-full">
           <nav className="grid grid-cols-2 gap-1.5 rounded-lg border border-border bg-white p-1.5 shadow-sm sm:grid-cols-3 lg:grid-cols-2 2xl:grid-cols-3" aria-label="เมนูผลลัพธ์ทริป">
             {panelMenuItems.map((item) => {
               const Icon = item.icon;
@@ -1218,6 +1223,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             })}
           </nav>
 
+          <div ref={resultsScrollRef} tabIndex={0} role="region" aria-label="รายละเอียดผลลัพธ์ทริป" className="trip-scrollbar min-h-0 space-y-3 overflow-y-auto overscroll-contain pr-1 pb-1">
           <section className={`${activePanel === "route" || activePanel === "itinerary" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-black text-primary-deep">{activePanel === "itinerary" ? "รายการเดินทาง" : "วางแผนเส้นทาง"}</h2>
@@ -1558,6 +1564,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               ระบบบันทึกเฉพาะสถานที่ที่ผู้ใช้เลือกและค่าทริป ไม่บันทึก API key และไม่บันทึกผล Google Places จำนวนมากแบบถาวร
             </p>
           </section>
+          </div>
         </aside>
       </div>
     </main>

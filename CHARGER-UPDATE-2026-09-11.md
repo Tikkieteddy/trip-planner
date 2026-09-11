@@ -12,3 +12,11 @@ Remaining:
 - Distances are geographic estimates, not driving distances or distance travelled along the route.
 
 Open questions: none required for this change.
+
+## Fixed results menu
+
+- Moved scrolling into a separate results region below the right-hand menu.
+- Desktop uses remaining panel height; mobile/tablet uses an 80dvh results panel.
+- Switching result tabs resets the content scroll position to the top.
+- Production build passed. Physical-device scrolling verification remains pending.
+- No additional decisions required.
