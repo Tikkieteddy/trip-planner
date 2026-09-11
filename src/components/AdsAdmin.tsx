@@ -90,7 +90,8 @@ export function AdsAdmin() {
   if (!authenticated) {
     return (
       <form onSubmit={login} className="w-full max-w-md rounded-lg border border-border bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-black text-primary-deep">เข้าสู่ระบบจัดการโฆษณา</h1>
+        <p className="text-xs font-black uppercase text-primary">Tikkie Trip CMS</p>
+        <h1 className="mt-1 text-xl font-black text-primary-deep">เข้าสู่ระบบจัดการเว็บไซต์</h1>
         <label className="mt-5 block text-sm font-black text-primary-deep">
           รหัสผ่าน Admin
           <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password"
@@ -108,7 +109,8 @@ export function AdsAdmin() {
     <section className="w-full max-w-4xl rounded-lg border border-border bg-white p-5 shadow-sm sm:p-7">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-black text-primary-deep">จัดการโฆษณา</h1>
+          <p className="text-xs font-black uppercase text-primary">Tikkie Trip CMS</p>
+          <h1 className="mt-1 text-xl font-black text-primary-deep">จัดการโฆษณา</h1>
           <p className="mt-1 text-sm font-semibold text-muted">รองรับโค้ดจาก Ads Network ที่มี HTML และ script</p>
         </div>
         <button type="button" onClick={() => void logout()} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm font-black text-primary">

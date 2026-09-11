@@ -1,6 +1,8 @@
 # Ads admin
 
-Admin page: `/admin/ads`
+CMS page: `/cms`
+
+Legacy admin page `/admin/ads` redirects to `/cms`.
 
 Required Vercel environment variables:
 
@@ -24,6 +26,7 @@ Completed:
 - Added responsive ad inventory and an authenticated ads admin page.
 - Upgraded Next.js to 16.3.4 and resolved all dependency audit findings.
 - Added linked starting-battery inputs for both percent and remaining driving range in kilometers.
+- Added `/cms` as the canonical management URL and redirected the previous admin URL to it.
 
 Remaining:
 - Connect Upstash Redis and add the admin password/session secret in Vercel.
