@@ -451,7 +451,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   ];
   const panelMenuItems = [
     { key: "route" as const, label: "วางแผน", icon: Navigation, count: waypoints.length },
-    { key: "itinerary" as const, label: "รายการเดินทาง", icon: CalendarClock, count: routeStops.length },
+    { key: "itinerary" as const, label: "รายการเดินทาง", icon: CalendarClock, count: itineraryStops.length },
     { key: "chargers" as const, label: "จุดชาร์จ", icon: BatteryCharging, count: chargers.length },
     { key: "nearby" as const, label: "ที่แวะใกล้เคียง", icon: MapPinned, count: nearbyPlaces.length },
     { key: "vehicle" as const, label: "รถ/บันทึก", icon: Car, count: null },

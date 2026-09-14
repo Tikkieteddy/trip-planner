@@ -29,6 +29,7 @@ Completed:
 - Added `/cms` as the canonical management URL and redirected the previous admin URL to it.
 - Kept recommended charging stations visible after adding one to the trip; the chosen station is marked as added, and route recalculation is requested.
 - Added mouse-over descriptions to planner, map, place-search, and CMS buttons.
+- Verified the charger flow with a live public route: 10 recommendations remain visible after one is added. Fixed the itinerary menu count after route invalidation.
 
 Remaining:
 - Connect Upstash Redis and add the admin password/session secret in Vercel.
