@@ -30,6 +30,7 @@ Completed:
 - Kept recommended charging stations visible after adding one to the trip; the chosen station is marked as added, and route recalculation is requested.
 - Added mouse-over descriptions to planner, map, place-search, and CMS buttons.
 - Verified the charger flow with a live public route: 10 recommendations remain visible after one is added. Fixed the itinerary menu count after route invalidation.
+- Rechecked production after deployment: adding a charger keeps 10 recommendations and shows 3 itinerary stops. Simulated viewport checks measured the ad slot at 320 x 100 px on mobile and 728 x 90 px on desktop.
 
 Remaining:
 - Connect Upstash Redis and add the admin password/session secret in Vercel.
