@@ -15,6 +15,13 @@ function getSecret() {
   return process.env.ADS_ADMIN_SESSION_SECRET ?? "";
 }
 
+export function getAdminSetupStatus() {
+  return {
+    passwordReady: (process.env.ADS_ADMIN_PASSWORD?.length ?? 0) >= 10,
+    sessionReady: getSecret().length >= 32,
+  };
+}
+
 export function isCorrectAdminPassword(password: string) {
   const expected = process.env.ADS_ADMIN_PASSWORD ?? "";
   return expected.length >= 10 && safeEqual(password, expected);

@@ -31,6 +31,7 @@ Completed:
 - Added mouse-over descriptions to planner, map, place-search, and CMS buttons.
 - Verified the charger flow with a live public route: 10 recommendations remain visible after one is added. Fixed the itinerary menu count after route invalidation.
 - Rechecked production after deployment: adding a charger keeps 10 recommendations and shows 3 itinerary stops. Simulated viewport checks measured the ad slot at 320 x 100 px on mobile and 728 x 90 px on desktop.
+- Audited Production environment variable names: only the two Google Maps keys were present. The CMS now reports missing setup explicitly and disables login until its two authentication secrets are configured.
 
 Remaining:
 - Connect Upstash Redis and add the admin password/session secret in Vercel.

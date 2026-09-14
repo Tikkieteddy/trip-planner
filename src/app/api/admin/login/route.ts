@@ -1,6 +1,11 @@
-import { adminCookieName, createAdminSessionToken, isCorrectAdminPassword } from "@/lib/admin-auth";
+import { adminCookieName, createAdminSessionToken, getAdminSetupStatus, isCorrectAdminPassword } from "@/lib/admin-auth";
 
 export async function POST(request: Request) {
+  const setup = getAdminSetupStatus();
+  if (!setup.passwordReady || !setup.sessionReady) {
+    return Response.json({ error: "ยังไม่ได้ตั้งค่าระบบ CMS ใน Vercel Production" }, { status: 503 });
+  }
+
   const body = (await request.json().catch(() => null)) as { password?: string } | null;
   if (!body?.password || !isCorrectAdminPassword(body.password)) {
     return Response.json({ error: "รหัสผ่านไม่ถูกต้อง" }, { status: 401 });

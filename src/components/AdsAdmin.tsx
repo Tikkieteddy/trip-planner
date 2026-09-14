@@ -8,7 +8,10 @@ type AdminAdResponse = {
   storageReady: boolean;
 };
 
-export function AdsAdmin() {
+type AdminSetup = { passwordReady: boolean; sessionReady: boolean; storageConfigured: boolean };
+
+export function AdsAdmin({ setup }: { setup: AdminSetup }) {
+  const loginReady = setup.passwordReady && setup.sessionReady;
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [password, setPassword] = useState("");
   const [script, setScript] = useState("");
@@ -92,13 +95,25 @@ export function AdsAdmin() {
       <form onSubmit={login} className="w-full max-w-md rounded-lg border border-border bg-white p-6 shadow-sm">
         <p className="text-xs font-black uppercase text-primary">Tikkie Trip CMS</p>
         <h1 className="mt-1 text-xl font-black text-primary-deep">เข้าสู่ระบบจัดการเว็บไซต์</h1>
+        {!loginReady ? (
+          <div role="status" className="mt-5 rounded-lg border border-warning/30 bg-yellow-50 p-3 text-sm font-bold leading-6 text-primary-deep">
+            <p>CMS ยังไม่พร้อมใช้งาน กรุณาตั้งค่าใน Vercel Production แล้ว deploy ใหม่:</p>
+            <ul className="mt-2 list-inside list-disc font-mono text-xs">
+              {!setup.passwordReady ? <li>ADS_ADMIN_PASSWORD (อย่างน้อย 10 ตัวอักษร)</li> : null}
+              {!setup.sessionReady ? <li>ADS_ADMIN_SESSION_SECRET (อย่างน้อย 32 ตัวอักษร)</li> : null}
+            </ul>
+          </div>
+        ) : null}
+        {!setup.storageConfigured ? (
+          <p className="mt-3 text-xs font-semibold leading-5 text-muted">การบันทึกโฆษณายังต้องเชื่อม Upstash Redis กับโปรเจกต์นี้</p>
+        ) : null}
         <label className="mt-5 block text-sm font-black text-primary-deep">
           รหัสผ่าน Admin
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password"
+          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required disabled={!loginReady} autoComplete="current-password"
             className="mt-2 w-full rounded-lg border border-border px-3" />
         </label>
         {message ? <p className="mt-3 text-sm font-bold text-danger">{message}</p> : null}
-        <button disabled={busy} title="เข้าสู่ระบบจัดการเว็บไซต์" className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-primary px-4 font-black text-yellow disabled:opacity-60">
+        <button disabled={busy || !loginReady} title="เข้าสู่ระบบจัดการเว็บไซต์" className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-primary px-4 font-black text-yellow disabled:opacity-60">
           {busy ? <LoaderCircle className="mr-2 size-4 animate-spin" /> : null} เข้าสู่ระบบ
         </button>
       </form>
