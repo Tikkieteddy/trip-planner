@@ -98,7 +98,7 @@ export function AdsAdmin() {
             className="mt-2 w-full rounded-lg border border-border px-3" />
         </label>
         {message ? <p className="mt-3 text-sm font-bold text-danger">{message}</p> : null}
-        <button disabled={busy} className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-primary px-4 font-black text-yellow disabled:opacity-60">
+        <button disabled={busy} title="เข้าสู่ระบบจัดการเว็บไซต์" className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-primary px-4 font-black text-yellow disabled:opacity-60">
           {busy ? <LoaderCircle className="mr-2 size-4 animate-spin" /> : null} เข้าสู่ระบบ
         </button>
       </form>
@@ -113,7 +113,7 @@ export function AdsAdmin() {
           <h1 className="mt-1 text-xl font-black text-primary-deep">จัดการโฆษณา</h1>
           <p className="mt-1 text-sm font-semibold text-muted">รองรับโค้ดจาก Ads Network ที่มี HTML และ script</p>
         </div>
-        <button type="button" onClick={() => void logout()} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm font-black text-primary">
+        <button type="button" onClick={() => void logout()} title="ออกจากระบบ CMS" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm font-black text-primary">
           <LogOut className="size-4" /> ออกจากระบบ
         </button>
       </div>
@@ -137,7 +137,7 @@ export function AdsAdmin() {
       {updatedAt ? <p className="mt-1 text-xs font-semibold text-muted">บันทึกล่าสุด: {new Date(updatedAt).toLocaleString("th-TH")}</p> : null}
       {message ? <p className={`mt-3 text-sm font-bold ${message.includes("แล้ว") ? "text-success" : "text-danger"}`}>{message}</p> : null}
 
-      <button type="button" onClick={() => void saveConfig()} disabled={busy || !storageReady}
+      <button type="button" onClick={() => void saveConfig()} disabled={busy || !storageReady} title="บันทึกและเผยแพร่การตั้งค่าโฆษณา"
         className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-5 font-black text-yellow disabled:cursor-not-allowed disabled:opacity-50">
         {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />} บันทึกโฆษณา
       </button>

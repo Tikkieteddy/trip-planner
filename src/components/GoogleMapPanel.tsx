@@ -61,7 +61,7 @@ function markerInfoHtml(place: PlannerPlace, label: string, buttonId: string) {
       <strong>${escapeHtml(label)}: ${escapeHtml(place.name)}</strong>
       <div style="margin-top:4px;font-size:12px;line-height:1.5">${escapeHtml(place.address ?? "ไม่มีที่อยู่จาก Google")}</div>
       <a href="${mapsUrl}" target="_blank" rel="noreferrer">เปิดใน Google Maps</a>
-      <button type="button" id="${buttonId}">เพิ่มเป็นจุดแวะ</button>
+      <button type="button" id="${buttonId}" title="เพิ่มสถานที่นี้เป็นจุดแวะในทริป">เพิ่มเป็นจุดแวะ</button>
     </div>
   `;
 }
@@ -316,6 +316,7 @@ export function GoogleMapPanel({
                   <button
                     type="button"
                     onClick={() => onSetOrigin(mapSearchPlace)}
+                    title="ใช้สถานที่นี้เป็นต้นทาง"
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-success px-3 text-xs font-black text-white"
                   >
                     <LocateFixed className="size-4" aria-hidden="true" />
@@ -324,6 +325,7 @@ export function GoogleMapPanel({
                   <button
                     type="button"
                     onClick={() => onSetDestination(mapSearchPlace)}
+                    title="ใช้สถานที่นี้เป็นปลายทาง"
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-danger px-3 text-xs font-black text-white"
                   >
                     <MapPinned className="size-4" aria-hidden="true" />
@@ -332,6 +334,7 @@ export function GoogleMapPanel({
                   <button
                     type="button"
                     onClick={() => onAddWaypoint(mapSearchPlace)}
+                    title="เพิ่มสถานที่นี้เป็นจุดแวะ"
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-warning px-3 text-xs font-black text-white"
                   >
                     <Plus className="size-4" aria-hidden="true" />
@@ -340,6 +343,7 @@ export function GoogleMapPanel({
                   <button
                     type="button"
                     onClick={() => onSearchNearby(mapSearchPlace)}
+                    title="ค้นหาสถานที่ใกล้จุดนี้"
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow"
                   >
                     <Navigation className="size-4" aria-hidden="true" />

@@ -243,6 +243,7 @@ function PlaceListCard({
   place,
   actionLabel,
   onAction,
+  added = false,
   onNearby,
   metricLabel,
   metricValue,
@@ -251,6 +252,7 @@ function PlaceListCard({
   place: PlannerPlace;
   actionLabel: string;
   onAction: () => void;
+  added?: boolean;
   onNearby?: () => void;
   metricLabel?: string;
   metricValue?: string;
@@ -318,15 +320,18 @@ function PlaceListCard({
         <button
           type="button"
           onClick={onAction}
-          className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow shadow-sm hover:bg-primary-deep"
+          disabled={added}
+          title={added ? "สถานที่นี้อยู่ในแผนการเดินทางแล้ว" : actionLabel}
+          className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow shadow-sm hover:bg-primary-deep disabled:cursor-default disabled:opacity-60"
         >
           <Plus className="size-3.5" aria-hidden="true" />
-          {actionLabel}
+          {added ? "เพิ่มแล้ว" : actionLabel}
         </button>
         {onNearby ? (
           <button
             type="button"
             onClick={onNearby}
+            title={`ค้นหาสถานที่ใกล้ ${place.name}`}
             className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary hover:border-cyan"
           >
             <Search className="size-3.5" aria-hidden="true" />
@@ -355,6 +360,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [routeStops, setRouteStops] = useState<PlannerPlace[]>([]);
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [chargers, setChargers] = useState<PlannerPlace[]>([]);
+  const [chargerSearchPolyline, setChargerSearchPolyline] = useState("");
   const [chargerNotice, setChargerNotice] = useState("");
   const [chargerSort, setChargerSort] = useState<ChargerSortKey>("route");
   const [nearbyPlaces, setNearbyPlaces] = useState<PlannerPlace[]>([]);
@@ -459,7 +465,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     { key: "speed" as const, label: "ชาร์จเร็ว", icon: Zap },
     { key: "rating" as const, label: "คะแนนสูง", icon: Star },
   ];
-  const routeSamplePoints = useMemo(() => (route?.encodedPolyline ? sampleRoutePoints(decodePolyline(route.encodedPolyline)) : []), [route?.encodedPolyline]);
+  const routeSamplePoints = useMemo(() => (chargerSearchPolyline ? sampleRoutePoints(decodePolyline(chargerSearchPolyline)) : []), [chargerSearchPolyline]);
   const sortedChargers = useMemo(() => {
     return [...chargers].sort((first, second) => {
       if (chargerSort === "origin-near" || chargerSort === "origin-far") {
@@ -543,11 +549,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     updateSetting("batteryStartPercent", Math.round(batteryStartPercent * 10) / 10);
   }
 
-  function clearComputedData() {
+  function clearComputedData(preserveChargerRecommendations = false) {
     setRoute(null);
     setRouteStops([]);
-    setChargers([]);
-    setChargerNotice("");
+    if (!preserveChargerRecommendations) {
+      setChargers([]);
+      setChargerNotice("");
+      setChargerSearchPolyline("");
+    }
     setNearbyPlaces([]);
   }
 
@@ -577,7 +586,10 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         chargeTargetPercent: isCharger ? (place.chargeTargetPercent ?? 85) : place.chargeTargetPercent,
       },
     ]);
-    clearComputedData();
+    clearComputedData(isCharger);
+    if (isCharger) {
+      setChargerNotice("รายการแนะนำจากเส้นทางก่อนหน้า กรุณาคำนวณเส้นทางใหม่หลังเลือกจุดชาร์จ");
+    }
     setStatus(`เพิ่ม ${place.name} เป็นจุดแวะแล้ว`);
   }
 
@@ -683,6 +695,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }
 
   async function searchChargingStations(encodedPolyline: string, stops: PlannerPlace[]) {
+    setChargerSearchPolyline(encodedPolyline);
     setPlacesLoading(true);
     setChargerNotice("");
 
@@ -937,6 +950,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 type="button"
                 onClick={() => void calculateRoute()}
                 disabled={routeActionDisabled}
+                title="คำนวณเส้นทางการเดินทางและค้นหาสถานีชาร์จ"
                 className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-yellow px-4 text-sm font-black text-primary shadow-lg hover:bg-yellow-soft disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {routeLoading ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Navigation className="size-4" aria-hidden="true" />}
@@ -963,6 +977,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   key={item.key}
                   type="button"
                   onClick={() => setActiveSetupPanel(item.key)}
+                  title={`เปิดเมนู${item.label}`}
                   className={`inline-flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[7px] font-black text-primary-deep transition ${
                     selected ? "border-primary bg-yellow shadow-sm" : "border-yellow/60 bg-yellow/70 hover:bg-yellow"
                   }`}
@@ -1116,6 +1131,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               type="button"
               onClick={() => void calculateRoute()}
               disabled={routeActionDisabled}
+              title="คำนวณเส้นทางและค้นหาสถานีชาร์จตามทาง"
               className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-yellow shadow-lg hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-60"
             >
               {routeLoading ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Navigation className="size-4" aria-hidden="true" />}
@@ -1175,6 +1191,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 type="button"
                 onClick={() => tourismCenter && void searchNearby(tourismCenter)}
                 disabled={!tourismCenter || placesLoading}
+                title="ค้นหาสถานที่ท่องเที่ยวรอบศูนย์กลางที่เลือก"
                 className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-yellow disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {placesLoading ? <LoaderCircle className="size-4 animate-spin" /> : <Search className="size-4" />}
@@ -1213,6 +1230,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   key={radius}
                   type="button"
                   onClick={() => updateSetting("tourismRadiusKm", radius)}
+                  title={`กำหนดรัศมีค้นหา ${radius} กิโลเมตร`}
                   className={`min-h-9 rounded-lg border px-3 text-xs font-black ${
                     settings.tourismRadiusKm === radius ? "border-primary bg-primary text-yellow" : "border-border text-primary"
                   }`}
@@ -1295,13 +1313,13 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                           </p>
                         </div>
                         <div className="flex shrink-0 gap-1">
-                          <button type="button" onClick={() => moveWaypoint(index, -1)} className="grid size-8 place-items-center rounded-md border border-border text-primary" aria-label="เลื่อนขึ้น">
+                          <button type="button" onClick={() => moveWaypoint(index, -1)} title="เลื่อนจุดแวะขึ้นหนึ่งตำแหน่ง" className="grid size-8 place-items-center rounded-md border border-border text-primary" aria-label="เลื่อนขึ้น">
                             <ArrowUp className="size-4" />
                           </button>
-                          <button type="button" onClick={() => moveWaypoint(index, 1)} className="grid size-8 place-items-center rounded-md border border-border text-primary" aria-label="เลื่อนลง">
+                          <button type="button" onClick={() => moveWaypoint(index, 1)} title="เลื่อนจุดแวะลงหนึ่งตำแหน่ง" className="grid size-8 place-items-center rounded-md border border-border text-primary" aria-label="เลื่อนลง">
                             <ArrowDown className="size-4" />
                           </button>
-                          <button type="button" onClick={() => removeWaypoint(index)} className="grid size-8 place-items-center rounded-md border border-border text-danger" aria-label="ลบจุดแวะ">
+                          <button type="button" onClick={() => removeWaypoint(index)} title="ลบจุดแวะนี้ออกจากแผน" className="grid size-8 place-items-center rounded-md border border-border text-danger" aria-label="ลบจุดแวะ">
                             <Trash2 className="size-4" />
                           </button>
                         </div>
@@ -1322,6 +1340,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   type="button"
                   onClick={() => void calculateRoute()}
                   disabled={routeActionDisabled}
+                  title="คำนวณเส้นทางใหม่จากต้นทาง จุดแวะ และปลายทางปัจจุบัน"
                   className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-primary px-3 text-sm font-black text-primary hover:bg-primary-soft disabled:opacity-60"
                 >
                   <RotateCcw className="size-4" />
@@ -1402,6 +1421,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                           aria-pressed={active}
                           disabled={!origin && (item.key === "origin-near" || item.key === "origin-far")}
                           onClick={() => setChargerSort(item.key)}
+                          title={`จัดอันดับสถานีชาร์จ: ${item.label}`}
                           className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border px-2 text-[11px] font-black ${
                             active ? "border-primary bg-yellow text-primary-deep" : "border-yellow/80 bg-yellow/70 text-primary-deep hover:border-primary"
                           }`}
@@ -1438,6 +1458,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                       key={place.id}
                       place={place}
                       actionLabel="เพิ่มเป็นจุดชาร์จ"
+                      added={waypoints.some((waypoint) => samePlace(waypoint, place))}
                       metricLabel={metric.label}
                       metricValue={metric.value}
                       recommendationBadges={getChargerRecommendationBadges(place)}
@@ -1483,6 +1504,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     key={radius}
                     type="button"
                     onClick={() => updateSetting("tourismRadiusKm", radius)}
+                    title={`กำหนดรัศมีค้นหา ${radius} กิโลเมตร`}
                     className={`min-h-10 rounded-lg border px-3 text-xs font-black ${
                       settings.tourismRadiusKm === radius ? "border-primary bg-primary text-yellow" : "border-border bg-white text-primary"
                     }`}
@@ -1495,6 +1517,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 type="button"
                 onClick={() => tourismCenter && void searchNearby(tourismCenter)}
                 disabled={!tourismCenter || placesLoading}
+                title="ค้นหาที่แวะใกล้ศูนย์กลางที่เลือก"
                 className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-yellow disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {placesLoading ? <LoaderCircle className="size-4 animate-spin" /> : <Search className="size-4" />}
@@ -1557,19 +1580,19 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           <section className={`${activePanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">บันทึกในเครื่อง</h2>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" onClick={saveTrip} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+              <button type="button" onClick={saveTrip} title="บันทึกแผนการเดินทางไว้ในเครื่องนี้" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
                 <Save className="size-4" />
                 บันทึก
               </button>
-              <button type="button" onClick={clearTrip} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-danger">
+              <button type="button" onClick={clearTrip} title="ล้างข้อมูลทริปที่บันทึกในเครื่องนี้" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-danger">
                 <Eraser className="size-4" />
                 ล้าง
               </button>
-              <button type="button" onClick={exportTrip} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary">
+              <button type="button" onClick={exportTrip} title="ดาวน์โหลดข้อมูลทริปเป็นไฟล์ JSON" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary">
                 <Download className="size-4" />
                 ส่งออก JSON
               </button>
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary">
+              <button type="button" onClick={() => fileInputRef.current?.click()} title="นำเข้าแผนการเดินทางจากไฟล์ JSON" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary">
                 <Upload className="size-4" />
                 นำเข้า
               </button>

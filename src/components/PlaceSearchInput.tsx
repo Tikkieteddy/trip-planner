@@ -180,6 +180,7 @@ export function PlaceSearchInput({ label, value, placeholder, helperText, center
         {value && onClear ? (
           <button
             type="button"
+            title={`ล้าง${label}`}
             onClick={() => {
               onClear();
               setQuery("");
@@ -198,6 +199,7 @@ export function PlaceSearchInput({ label, value, placeholder, helperText, center
         <button
           type="button"
           onClick={() => void searchByText()}
+          title={`ค้นหาสถานที่ด้วยชื่อ ${query}`}
           disabled={textSearchLoading}
           className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-cyan/40 bg-blue-50 px-3 text-xs font-black text-primary hover:border-cyan disabled:opacity-60"
         >
@@ -218,6 +220,7 @@ export function PlaceSearchInput({ label, value, placeholder, helperText, center
               type="button"
               role="option"
               onClick={() => void selectPrediction(prediction)}
+              title={`เลือกสถานที่ ${prediction.mainText}`}
               className="flex w-full items-start gap-3 rounded-md px-3 py-3 text-left hover:bg-primary-soft focus:bg-primary-soft"
             >
               <MapPin className="mt-1 size-4 shrink-0 text-cyan-deep" aria-hidden="true" />

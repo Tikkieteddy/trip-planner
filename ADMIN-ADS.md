@@ -27,6 +27,8 @@ Completed:
 - Upgraded Next.js to 16.3.4 and resolved all dependency audit findings.
 - Added linked starting-battery inputs for both percent and remaining driving range in kilometers.
 - Added `/cms` as the canonical management URL and redirected the previous admin URL to it.
+- Kept recommended charging stations visible after adding one to the trip; the chosen station is marked as added, and route recalculation is requested.
+- Added mouse-over descriptions to planner, map, place-search, and CMS buttons.
 
 Remaining:
 - Connect Upstash Redis and add the admin password/session secret in Vercel.
