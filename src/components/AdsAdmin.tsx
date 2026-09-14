@@ -4,7 +4,7 @@ import { Eye, EyeOff, LoaderCircle, LogOut, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type AdminAdResponse = {
-  config: { enabled: boolean; script: string; updatedAt: string | null };
+  config: { enabled: boolean; mobileScript: string; desktopScript: string; updatedAt: string | null };
   storageReady: boolean;
 };
 
@@ -14,26 +14,35 @@ export function AdsAdmin({ setup }: { setup: AdminSetup }) {
   const loginReady = setup.passwordReady && setup.sessionReady;
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [password, setPassword] = useState("");
-  const [script, setScript] = useState("");
+  const [mobileScript, setMobileScript] = useState("");
+  const [desktopScript, setDesktopScript] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [previewSize, setPreviewSize] = useState<"mobile" | "desktop">("mobile");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function loadConfig() {
-    const response = await fetch("/api/admin/ads", { cache: "no-store" });
-    if (response.status === 401) {
-      setAuthenticated(false);
-      return;
-    }
+    try {
+      const response = await fetch("/api/admin/ads", { cache: "no-store" });
+      if (response.status === 401) {
+        setAuthenticated(false);
+        return;
+      }
+      if (!response.ok) throw new Error("อ่านข้อมูลโฆษณาไม่สำเร็จ กรุณาลองใหม่");
 
-    const result = (await response.json()) as AdminAdResponse;
-    setAuthenticated(true);
-    setScript(result.config.script);
-    setEnabled(result.config.enabled);
-    setStorageReady(result.storageReady);
-    setUpdatedAt(result.config.updatedAt);
+      const result = (await response.json()) as AdminAdResponse;
+      setAuthenticated(true);
+      setMobileScript(result.config.mobileScript);
+      setDesktopScript(result.config.desktopScript);
+      setEnabled(result.config.enabled);
+      setStorageReady(result.storageReady);
+      setUpdatedAt(result.config.updatedAt);
+    } catch {
+      setAuthenticated(false);
+      setMessage("อ่านข้อมูลโฆษณาไม่สำเร็จ กรุณาลองใหม่");
+    }
   }
 
   useEffect(() => {
@@ -44,41 +53,51 @@ export function AdsAdmin({ setup }: { setup: AdminSetup }) {
     event.preventDefault();
     setBusy(true);
     setMessage("");
-    const response = await fetch("/api/admin/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-    const result = (await response.json()) as { error?: string };
-    setBusy(false);
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const result = (await response.json()) as { error?: string };
 
-    if (!response.ok) {
-      setMessage(result.error ?? "เข้าสู่ระบบไม่สำเร็จ");
-      return;
+      if (!response.ok) {
+        setMessage(result.error ?? "เข้าสู่ระบบไม่สำเร็จ");
+        return;
+      }
+
+      setPassword("");
+      await loadConfig();
+    } catch {
+      setMessage("เชื่อมต่อระบบไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setBusy(false);
     }
-
-    setPassword("");
-    await loadConfig();
   }
 
   async function saveConfig() {
     setBusy(true);
     setMessage("");
-    const response = await fetch("/api/admin/ads", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled, script }),
-    });
-    const result = (await response.json()) as { error?: string; config?: AdminAdResponse["config"] };
-    setBusy(false);
+    try {
+      const response = await fetch("/api/admin/ads", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled, mobileScript, desktopScript }),
+      });
+      const result = (await response.json()) as { error?: string; config?: AdminAdResponse["config"] };
 
-    if (!response.ok) {
-      setMessage(result.error ?? "บันทึกไม่สำเร็จ");
-      return;
+      if (!response.ok) {
+        setMessage(result.error ?? "บันทึกไม่สำเร็จ");
+        return;
+      }
+
+      setUpdatedAt(result.config?.updatedAt ?? null);
+      setMessage(enabled ? "บันทึกและเผยแพร่โฆษณาแล้ว" : "บันทึกแล้ว โฆษณายังปิดอยู่");
+    } catch {
+      setMessage("เชื่อมต่อระบบไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setBusy(false);
     }
-
-    setUpdatedAt(result.config?.updatedAt ?? null);
-    setMessage("บันทึกและเผยแพร่สคริปต์โฆษณาแล้ว");
   }
 
   async function logout() {
@@ -126,7 +145,7 @@ export function AdsAdmin({ setup }: { setup: AdminSetup }) {
         <div>
           <p className="text-xs font-black uppercase text-primary">Tikkie Trip CMS</p>
           <h1 className="mt-1 text-xl font-black text-primary-deep">จัดการโฆษณา</h1>
-          <p className="mt-1 text-sm font-semibold text-muted">รองรับโค้ดจาก Ads Network ที่มี HTML และ script</p>
+          <p className="mt-1 text-sm font-semibold text-muted">กำหนดโค้ดโฆษณาแยกตามขนาดหน้าจอ</p>
         </div>
         <button type="button" onClick={() => void logout()} title="ออกจากระบบ CMS" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm font-black text-primary">
           <LogOut className="size-4" /> ออกจากระบบ
@@ -142,17 +161,40 @@ export function AdsAdmin({ setup }: { setup: AdminSetup }) {
         <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} className="size-5 accent-primary" />
       </label>
 
-      <label className="mt-5 block text-sm font-black text-primary-deep">
-        Script จาก Ads Network
-        <textarea value={script} onChange={(event) => setScript(event.target.value)} rows={14} spellCheck={false}
-          placeholder={'<script async src="https://..."></script>'}
-          className="mt-2 w-full resize-y rounded-lg border border-border p-3 font-mono text-sm font-normal leading-6" />
-      </label>
-      <p className="mt-2 text-xs font-semibold text-muted">พื้นที่หน้าเว็บ: มือถือ 320 × 100 px และเดสก์ท็อป 728 × 90 px</p>
+      <div className="mt-5 grid gap-5">
+        <label className="block text-sm font-black text-primary-deep">
+          โค้ดโฆษณามือถือ (320 × 100 px)
+          <textarea value={mobileScript} onChange={(event) => setMobileScript(event.target.value)} rows={7} spellCheck={false}
+            placeholder={'<script async src="https://..."></script>'}
+            className="mt-2 w-full resize-y rounded-lg border border-border p-3 font-mono text-sm font-normal leading-6" />
+        </label>
+        <label className="block text-sm font-black text-primary-deep">
+          โค้ดโฆษณาเดสก์ท็อป (728 × 90 px)
+          <textarea value={desktopScript} onChange={(event) => setDesktopScript(event.target.value)} rows={7} spellCheck={false}
+            placeholder={'<script async src="https://..."></script>'}
+            className="mt-2 w-full resize-y rounded-lg border border-border p-3 font-mono text-sm font-normal leading-6" />
+        </label>
+      </div>
+      <p className="mt-2 text-xs font-semibold text-muted">เปิดแสดงผลได้เมื่อใส่โค้ดทั้งสองขนาด โค้ดจากผู้ให้บริการจะทำงานบนหน้าเว็บจริงเท่านั้น</p>
+      <div className="mt-5 border-t border-border pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-black text-primary-deep">ตัวอย่างพื้นที่โฆษณา</h2>
+          <div className="inline-flex gap-1 rounded-lg border border-border p-1" role="group" aria-label="เลือกขนาดตัวอย่างโฆษณา">
+            <button type="button" onClick={() => setPreviewSize("mobile")} title="ดูพื้นที่โฆษณาบนมือถือ" aria-pressed={previewSize === "mobile"} className={`rounded-md px-3 py-1 text-xs font-bold ${previewSize === "mobile" ? "bg-yellow text-primary-deep" : "text-muted"}`}>มือถือ</button>
+            <button type="button" onClick={() => setPreviewSize("desktop")} title="ดูพื้นที่โฆษณาบนเดสก์ท็อป" aria-pressed={previewSize === "desktop"} className={`rounded-md px-3 py-1 text-xs font-bold ${previewSize === "desktop" ? "bg-yellow text-primary-deep" : "text-muted"}`}>เดสก์ท็อป</button>
+          </div>
+        </div>
+        <div className="mt-3 overflow-x-auto">
+          <div className={`flex items-center justify-center border border-dashed border-border bg-background text-xs font-bold text-muted ${previewSize === "mobile" ? "h-[100px] w-[320px]" : "h-[90px] w-[728px]"}`}>
+            {previewSize === "mobile" ? "320 × 100 px" : "728 × 90 px"} · {(previewSize === "mobile" ? mobileScript : desktopScript).trim() ? "มีโค้ดแล้ว" : "ยังไม่มีโค้ด"}
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-muted">ตัวอย่างแสดงขนาดเท่านั้น ไม่รันโค้ดโฆษณา</p>
+      </div>
       {updatedAt ? <p className="mt-1 text-xs font-semibold text-muted">บันทึกล่าสุด: {new Date(updatedAt).toLocaleString("th-TH")}</p> : null}
-      {message ? <p className={`mt-3 text-sm font-bold ${message.includes("แล้ว") ? "text-success" : "text-danger"}`}>{message}</p> : null}
+      {message ? <p role="status" className={`mt-3 text-sm font-bold ${message.startsWith("บันทึก") ? "text-success" : "text-danger"}`}>{message}</p> : null}
 
-      <button type="button" onClick={() => void saveConfig()} disabled={busy || !storageReady} title="บันทึกและเผยแพร่การตั้งค่าโฆษณา"
+      <button type="button" onClick={() => void saveConfig()} disabled={busy || !storageReady || (enabled && (!mobileScript.trim() || !desktopScript.trim()))} title="บันทึกและเผยแพร่การตั้งค่าโฆษณา"
         className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-5 font-black text-yellow disabled:cursor-not-allowed disabled:opacity-50">
         {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />} บันทึกโฆษณา
       </button>

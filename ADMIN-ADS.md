@@ -13,9 +13,13 @@ Required Vercel environment variables:
 
 Optional fallback:
 
-- `AD_SCRIPT_HTML`: ad network script used when Redis is not connected. Changes to this value require a deployment.
+- `AD_SCRIPT_HTML_MOBILE`: mobile ad code when Redis is not connected.
+- `AD_SCRIPT_HTML_DESKTOP`: desktop ad code when Redis is not connected.
+- `AD_SCRIPT_HTML`: legacy shared ad code used for either size if its specific variable is absent.
 
-The public ad slot is 320 x 100 px on mobile and 728 x 90 px from the `sm` breakpoint. The admin session is stored in an HTTP-only, same-site cookie for eight hours. Only an authenticated admin API can write the ad script.
+Fallback variable changes require a deployment. Do not put account secrets in public ad code; the enabled ad code is returned by the public `/api/ads` endpoint.
+
+The public ad slot is 320 x 100 px on mobile and 728 x 90 px from the `sm` breakpoint. Only the code for the active viewport is inserted. The admin session is stored in an HTTP-only, same-site cookie for eight hours. Only an authenticated admin API can write the ad code. Both sizes require code before ads can be enabled. Existing single-script Redis records are read as code for both sizes.
 
 ## Work status
 
@@ -32,6 +36,7 @@ Completed:
 - Verified the charger flow with a live public route: 10 recommendations remain visible after one is added. Fixed the itinerary menu count after route invalidation.
 - Rechecked production after deployment: adding a charger keeps 10 recommendations and shows 3 itinerary stops. Simulated viewport checks measured the ad slot at 320 x 100 px on mobile and 728 x 90 px on desktop.
 - Audited Production environment variable names: only the two Google Maps keys were present. The CMS now reports missing setup explicitly and disables login until its two authentication secrets are configured.
+- Added separate mobile and desktop ad code fields, an inert size preview, and server validation before enabling ads.
 
 Remaining:
 - Connect Upstash Redis and add the admin password/session secret in Vercel.

@@ -2,7 +2,8 @@ import { Redis } from "@upstash/redis";
 
 export type AdConfig = {
   enabled: boolean;
-  script: string;
+  mobileScript: string;
+  desktopScript: string;
   updatedAt: string | null;
 };
 
@@ -23,12 +24,25 @@ function getRedis() {
 }
 
 function getEnvironmentConfig(): AdConfig {
-  const script = process.env.AD_SCRIPT_HTML?.trim() ?? "";
+  const sharedScript = process.env.AD_SCRIPT_HTML?.trim() ?? "";
+  const mobileScript = process.env.AD_SCRIPT_HTML_MOBILE?.trim() ?? sharedScript;
+  const desktopScript = process.env.AD_SCRIPT_HTML_DESKTOP?.trim() ?? sharedScript;
 
   return {
-    enabled: Boolean(script),
-    script,
+    enabled: Boolean(mobileScript && desktopScript),
+    mobileScript,
+    desktopScript,
     updatedAt: null,
+  };
+}
+
+function normalizeConfig(stored: AdConfig & { script?: string }): AdConfig {
+  const legacyScript = stored.script ?? "";
+  return {
+    enabled: stored.enabled,
+    mobileScript: stored.mobileScript ?? legacyScript,
+    desktopScript: stored.desktopScript ?? legacyScript,
+    updatedAt: stored.updatedAt,
   };
 }
 
@@ -40,7 +54,7 @@ export async function readAdConfig() {
   }
 
   const stored = await redis.get<AdConfig>(adConfigKey);
-  return { config: stored ?? getEnvironmentConfig(), storageReady: true };
+  return { config: stored ? normalizeConfig(stored) : getEnvironmentConfig(), storageReady: true };
 }
 
 export async function writeAdConfig(config: AdConfig) {
