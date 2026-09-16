@@ -161,3 +161,10 @@ export const savedTripSchema = z.object({
   chargerSearchPolyline: z.string().max(20000).optional(),
   chargerNotice: z.string().max(800).optional(),
 });
+
+export const savedRouteSchema = savedTripSchema.extend({
+  id: z.string().min(8).max(128),
+  name: z.string().trim().min(1).max(120),
+});
+
+export const savedRouteLibrarySchema = z.array(savedRouteSchema).max(25);

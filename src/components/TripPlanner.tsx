@@ -32,8 +32,8 @@ import { estimateBatteryByLegs, batterySummaryText } from "@/lib/battery";
 import { postJson } from "@/lib/client-api";
 import { formatDistance, formatDuration, formatKwh, formatPercent, getDepartureIso } from "@/lib/format";
 import { decodePolyline, splitEncodedPolyline } from "@/lib/polyline";
-import { savedTripSchema } from "@/lib/schemas";
-import type { BatteryLegEstimate, LatLng, PlannerPlace, RouteResult, SavedTrip, TourismCategory, TripDayPlan, TripSettings } from "@/types/trip";
+import { savedRouteLibrarySchema, savedRouteSchema, savedTripSchema } from "@/lib/schemas";
+import type { BatteryLegEstimate, LatLng, PlannerPlace, RouteResult, SavedRoute, SavedTrip, TourismCategory, TripDayPlan, TripSettings } from "@/types/trip";
 import { GoogleMapPanel } from "@/components/GoogleMapPanel";
 import { PlaceSearchInput } from "@/components/PlaceSearchInput";
 import { AdSlot } from "@/components/AdSlot";
@@ -70,6 +70,8 @@ type RecommendationBadge = {
 };
 
 const storageKey = "tikkie-trip-v1";
+const savedRouteLibraryKey = "tikkie-trip-library-v1";
+const maxSavedRoutes = 25;
 const routeChargerPolylineLimit = 18000;
 const routeChargerMaxSegments = 10;
 const earthRadiusMeters = 6371000;
@@ -112,6 +114,14 @@ function makeDayPlans(travelDate: string, days: number, existing: TripDayPlan[] 
       note: previous?.note ?? "",
     };
   });
+}
+
+function defaultRouteName(origin: PlannerPlace | null, destination: PlannerPlace | null, travelDate: string) {
+  if (origin && destination) {
+    return `${origin.name} - ${destination.name}`.slice(0, 120);
+  }
+
+  return `ทริป EV ${travelDate}`;
 }
 
 function samePlace(a: PlannerPlace, b: PlannerPlace) {
@@ -395,6 +405,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [activePanel, setActivePanel] = useState<PlannerMenuKey>("route");
   const [summaryDetail, setSummaryDetail] = useState<SummaryDetailKey>(null);
   const [dayPlans, setDayPlans] = useState<TripDayPlan[]>(() => makeDayPlans(defaultSettings.travelDate, defaultSettings.days));
+  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
+  const [routeName, setRouteName] = useState(() => defaultRouteName(null, null, defaultSettings.travelDate));
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setupScrollRef = useRef<HTMLDivElement | null>(null);
   const resultsScrollRef = useRef<HTMLDivElement | null>(null);
@@ -458,7 +470,23 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       setChargers((parsed.data.chargers as PlannerPlace[] | undefined) ?? []);
       setChargerSearchPolyline(parsed.data.chargerSearchPolyline ?? "");
       setChargerNotice(parsed.data.chargerNotice ?? "");
+      setRouteName(defaultRouteName(parsed.data.origin, parsed.data.destination, parsed.data.settings.travelDate));
       setStatus("โหลดทริปที่บันทึกไว้ในเครื่องแล้ว");
+    }
+  }, []);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(savedRouteLibraryKey);
+
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const parsed = savedRouteLibrarySchema.safeParse(JSON.parse(raw) as unknown);
+      if (parsed.success) setSavedRoutes(parsed.data as SavedRoute[]);
+    } catch {
+      // Keep the active trip usable even when an older library entry is malformed.
     }
   }, []);
 
@@ -913,8 +941,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     }
   }
 
-  function saveTrip() {
-    const snapshot: SavedTrip = {
+  function createTripSnapshot(): SavedTrip {
+    return {
       version: 2,
       savedAt: new Date().toISOString(),
       settings,
@@ -929,15 +957,64 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       chargerSearchPolyline,
       chargerNotice,
     };
+  }
+
+  function applyTripSnapshot(snapshot: SavedTrip, message: string) {
+    setSettings(snapshot.settings);
+    setOrigin(snapshot.origin);
+    setDestination(snapshot.destination);
+    setWaypoints(snapshot.waypoints);
+    setTourismCenter(snapshot.tourismCenter);
+    setDayPlans(makeDayPlans(snapshot.settings.travelDate, snapshot.settings.days, snapshot.dayPlans ?? []));
+    setRoute(snapshot.route ?? null);
+    setRouteStops(snapshot.routeStops ?? []);
+    setChargers(snapshot.chargers ?? []);
+    setChargerSearchPolyline(snapshot.chargerSearchPolyline ?? "");
+    setChargerNotice(snapshot.chargerNotice ?? "");
+    setRouteName(defaultRouteName(snapshot.origin, snapshot.destination, snapshot.settings.travelDate));
+    setActivePanel("route");
+    setStatus(message);
+    setError("");
+  }
+
+  function saveTrip() {
+    const snapshot = createTripSnapshot();
     const parsed = savedTripSchema.safeParse(snapshot);
 
     if (!parsed.success) {
       setError("ข้อมูลทริปไม่ผ่าน schema จึงยังไม่บันทึก");
       return;
     }
+    const name = routeName.trim() || defaultRouteName(origin, destination, settings.travelDate);
+    const routeId = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `route-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const routeRecord = savedRouteSchema.safeParse({
+      ...parsed.data,
+      id: routeId,
+      name,
+    });
 
+    if (!routeRecord.success) {
+      setError("ชื่อ route ไม่ถูกต้อง จึงยังไม่บันทึก");
+      return;
+    }
+
+    const nextRoutes = [routeRecord.data as SavedRoute, ...savedRoutes].slice(0, maxSavedRoutes);
     window.localStorage.setItem(storageKey, JSON.stringify(parsed.data));
-    setStatus(route ? "บันทึกทริปและเส้นทางที่คำนวณไว้ในเครื่องแล้ว" : "บันทึกทริปไว้ในเครื่องแล้ว");
+    window.localStorage.setItem(savedRouteLibraryKey, JSON.stringify(nextRoutes));
+    setSavedRoutes(nextRoutes);
+    setRouteName(name);
+    setStatus(route ? `บันทึก route “${name}” พร้อมเส้นทางและจุดชาร์จแล้ว` : `บันทึก route “${name}” แล้ว`);
+  }
+
+  function openSavedRoute(savedRoute: SavedRoute) {
+    applyTripSnapshot(savedRoute, `เปิด route “${savedRoute.name}” แล้ว`);
+  }
+
+  function removeSavedRoute(savedRoute: SavedRoute) {
+    const nextRoutes = savedRoutes.filter((item) => item.id !== savedRoute.id);
+    window.localStorage.setItem(savedRouteLibraryKey, JSON.stringify(nextRoutes));
+    setSavedRoutes(nextRoutes);
+    setStatus(`ลบ route “${savedRoute.name}” ออกจากรายการแล้ว`);
   }
 
   function clearTrip() {
@@ -952,21 +1029,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }
 
   function exportTrip() {
-    const snapshot: SavedTrip = {
-      version: 2,
-      savedAt: new Date().toISOString(),
-      settings,
-      origin,
-      destination,
-      waypoints,
-      tourismCenter,
-      dayPlans,
-      route,
-      routeStops,
-      chargers,
-      chargerSearchPolyline,
-      chargerNotice,
-    };
+    const snapshot = createTripSnapshot();
     const parsed = savedTripSchema.safeParse(snapshot);
 
     if (!parsed.success) {
@@ -997,18 +1060,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         return;
       }
 
-      setSettings(parsed.data.settings as TripSettings);
-      setOrigin(parsed.data.origin as PlannerPlace | null);
-      setDestination(parsed.data.destination as PlannerPlace | null);
-      setWaypoints(parsed.data.waypoints as PlannerPlace[]);
-      setTourismCenter(parsed.data.tourismCenter as PlannerPlace | null);
-      setDayPlans(makeDayPlans(parsed.data.settings.travelDate, parsed.data.settings.days, parsed.data.dayPlans ?? []));
-      setRoute((parsed.data.route as RouteResult | null | undefined) ?? null);
-      setRouteStops((parsed.data.routeStops as PlannerPlace[] | undefined) ?? []);
-      setChargers((parsed.data.chargers as PlannerPlace[] | undefined) ?? []);
-      setChargerSearchPolyline(parsed.data.chargerSearchPolyline ?? "");
-      setChargerNotice(parsed.data.chargerNotice ?? "");
-      setStatus(parsed.data.route ? "นำเข้าทริปและเส้นทางที่คำนวณแล้ว" : "นำเข้าทริปจาก JSON แล้ว");
+      applyTripSnapshot(parsed.data as SavedTrip, parsed.data.route ? "นำเข้าทริปและเส้นทางที่คำนวณแล้ว" : "นำเข้าทริปจาก JSON แล้ว");
     } catch {
       setError("อ่านไฟล์ JSON ไม่สำเร็จ");
     }
@@ -1723,11 +1775,25 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           </section>
 
           <section className={`${activePanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
-            <h2 className="text-lg font-black text-primary-deep">บันทึกในเครื่อง</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-black text-primary-deep">Route ที่บันทึก</h2>
+              <span className="rounded-md bg-primary-soft px-2 py-1 text-xs font-black text-primary">{savedRoutes.length}/{maxSavedRoutes}</span>
+            </div>
+            <label className="mt-3 block">
+              <span className="text-xs font-black text-primary-deep">ตั้งชื่อ route</span>
+              <input
+                value={routeName}
+                maxLength={120}
+                onChange={(event) => setRouteName(event.target.value)}
+                placeholder="เช่น ทริปเขาค้อ พ.ย. 2569"
+                title="ตั้งชื่อ route ก่อนบันทึก"
+                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-bold text-primary-deep outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+              />
+            </label>
             <div data-tour="save-actions" className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" onClick={saveTrip} title="บันทึกแผนการเดินทางไว้ในเครื่องนี้" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+              <button type="button" onClick={saveTrip} title="บันทึก route นี้เป็นรายการใหม่ในเครื่อง" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
                 <Save className="size-4" />
-                บันทึก
+                บันทึก route
               </button>
               <button type="button" onClick={clearTrip} title="ล้างข้อมูลทริปที่บันทึกในเครื่องนี้" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-danger">
                 <Eraser className="size-4" />
@@ -1749,9 +1815,52 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               className="hidden"
               onChange={(event) => void importTrip(event.target.files?.[0])}
             />
+            <div className="mt-4 space-y-2">
+              {savedRoutes.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border p-3 text-xs font-bold leading-5 text-muted">
+                  ยังไม่มี route ที่บันทึก ตั้งชื่อ route แล้วกด “บันทึก route” เพื่อเก็บรายการแรก
+                </p>
+              ) : (
+                savedRoutes.map((savedRoute) => (
+                  <article key={savedRoute.id} className="rounded-lg border border-border bg-surface-strong p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-black text-primary-deep">{savedRoute.name}</h3>
+                        <p className="mt-1 text-xs font-semibold text-muted">
+                          {savedRoute.origin?.name ?? "ยังไม่มีต้นทาง"} → {savedRoute.destination?.name ?? "ยังไม่มีปลายทาง"}
+                        </p>
+                        <p className="mt-1 text-[11px] font-semibold text-muted">
+                          บันทึก {new Date(savedRoute.savedAt).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-black text-primary">
+                        {savedRoute.route ? "มีเส้นทาง" : "รอคำนวณ"}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => openSavedRoute(savedRoute)} title={`เปิด route ${savedRoute.name}`} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+                        <Navigation className="size-3.5" />
+                        เปิด
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`ลบ route “${savedRoute.name}” ออกจากรายการที่บันทึกไว้หรือไม่?`)) removeSavedRoute(savedRoute);
+                        }}
+                        title={`ลบ route ${savedRoute.name}`}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-danger/30 bg-white px-3 text-xs font-black text-danger"
+                      >
+                        <Trash2 className="size-3.5" />
+                        ลบ
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
             <p className="mt-3 flex gap-2 rounded-lg bg-primary-soft p-3 text-xs font-bold leading-5 text-primary-deep">
               <FileJson className="mt-0.5 size-4 shrink-0" />
-              ระบบบันทึกเฉพาะสถานที่ที่ผู้ใช้เลือกและค่าทริป ไม่บันทึก API key และไม่บันทึกผล Google Places จำนวนมากแบบถาวร
+              Route ทั้งหมดเก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น ไม่บันทึก API key และไม่ส่งข้อมูลขึ้นเซิร์ฟเวอร์
             </p>
           </section>
           </div>

@@ -144,6 +144,11 @@ export type SavedTrip = {
   chargerNotice?: string;
 };
 
+export type SavedRoute = SavedTrip & {
+  id: string;
+  name: string;
+};
+
 export type ApiErrorResponse = {
   error: string;
   detail?: string;
