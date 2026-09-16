@@ -263,7 +263,7 @@ export function GoogleMapPanel({
 
   if (!browserKey) {
     return (
-      <section className={`flex min-h-[520px] flex-col items-center justify-center rounded-lg border border-dashed border-cyan/50 bg-white p-6 text-center shadow-sm ${className}`}>
+      <section data-tour="map" className={`flex min-h-[520px] flex-col items-center justify-center rounded-lg border border-dashed border-cyan/50 bg-white p-6 text-center shadow-sm ${className}`}>
         <AlertTriangle className="size-10 text-warning" aria-hidden="true" />
         <h2 className="mt-4 text-xl font-black text-primary-deep">ยังไม่ได้ตั้งค่า Browser API Key</h2>
         <p className="mt-2 max-w-md text-sm font-semibold leading-6 text-muted">
@@ -274,7 +274,7 @@ export function GoogleMapPanel({
   }
 
   return (
-    <section className={`flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-white shadow-sm ${className}`}>
+    <section data-tour="map" className={`flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-white shadow-sm ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <p className="text-sm font-black text-primary-deep">แผนที่และเส้นทาง</p>

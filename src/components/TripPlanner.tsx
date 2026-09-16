@@ -24,7 +24,7 @@ import {
   Upload,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { connectorLabel, connectorOptions, nearbyActivityTypes, tourismCategories } from "@/data/place-types";
 import { estimateBatteryByLegs, batterySummaryText } from "@/lib/battery";
 import { postJson } from "@/lib/client-api";
@@ -35,6 +35,7 @@ import type { BatteryLegEstimate, LatLng, PlannerPlace, RouteResult, SavedTrip, 
 import { GoogleMapPanel } from "@/components/GoogleMapPanel";
 import { PlaceSearchInput } from "@/components/PlaceSearchInput";
 import { AdSlot } from "@/components/AdSlot";
+import { TutorialGuide } from "@/components/TutorialGuide";
 
 type TripPlannerProps = {
   browserKey: string;
@@ -375,6 +376,17 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setupScrollRef = useRef<HTMLDivElement | null>(null);
   const resultsScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const enterTutorialStep = useCallback((id: string) => {
+    if (id === "origin" || id === "destination") setActiveSetupPanel("trip");
+    if (id === "results-menu") setActivePanel("route");
+    if (id === "save-actions") setActivePanel("vehicle");
+  }, []);
+
+  const closeTutorial = useCallback(() => {
+    setActiveSetupPanel("trip");
+    setActivePanel("route");
+  }, []);
 
   useEffect(() => {
     resultsScrollRef.current?.scrollTo({ top: 0 });
@@ -946,7 +958,9 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </div>
 
             <div className="flex shrink-0 items-center">
+              <TutorialGuide onStepEnter={enterTutorialStep} onClose={closeTutorial} />
               <button
+                data-tour="calculate"
                 type="button"
                 onClick={() => void calculateRoute()}
                 disabled={routeActionDisabled}
@@ -967,7 +981,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
       <div className="mx-auto grid max-w-[1800px] gap-3 px-3 pb-3 sm:px-4 lg:h-[calc(100dvh-180px)] lg:grid-cols-[360px_minmax(0,1fr)_390px] lg:overflow-hidden lg:px-6">
         <aside className="grid h-[80dvh] min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden lg:h-full">
-          <nav className="grid grid-cols-3 gap-1.5 rounded-lg border border-border bg-white p-1.5 shadow-sm" aria-label="เมนูตั้งค่าทริป">
+          <nav data-tour="setup-menu" className="grid grid-cols-3 gap-1.5 rounded-lg border border-border bg-white p-1.5 shadow-sm" aria-label="เมนูตั้งค่าทริป">
             {setupMenuItems.map((item) => {
               const Icon = item.icon;
               const selected = activeSetupPanel === item.key;
@@ -996,7 +1010,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               <h2 className="text-lg font-black text-primary-deep">ตั้งค่าทริป</h2>
             </div>
             <div className="mt-4 space-y-4">
-              <PlaceSearchInput
+              <div data-tour="origin"><PlaceSearchInput
                 label="ต้นทาง"
                 placeholder="เช่น กรุงเทพฯ, บ้าน, สถานที่ทำงาน"
                 value={origin}
@@ -1008,8 +1022,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   clearComputedData();
                 }}
                 helperText="ใช้ suggestion จาก Google Places และโหลดพิกัดจาก Place Details"
-              />
-              <PlaceSearchInput
+              /></div>
+              <div data-tour="destination"><PlaceSearchInput
                 label="ปลายทาง"
                 placeholder="เช่น เขาใหญ่, เชียงใหม่, ระยอง"
                 value={destination}
@@ -1021,7 +1035,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   setDestination(null);
                   clearComputedData();
                 }}
-              />
+              /></div>
 
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
@@ -1243,7 +1257,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         </div>
 
         <aside className="grid h-[80dvh] min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden lg:h-full">
-          <nav className="flex min-h-12 items-center gap-2 rounded-lg border border-border bg-white p-1.5 shadow-sm" aria-label="เมนูผลลัพธ์ทริป">
+          <nav data-tour="results-menu" className="flex min-h-12 items-center gap-2 rounded-lg border border-border bg-white p-1.5 shadow-sm" aria-label="เมนูผลลัพธ์ทริป">
             <span className="grid size-9 shrink-0 place-items-center rounded-md bg-yellow text-primary-deep">
               <ActivePanelIcon className="size-4" aria-hidden="true" />
             </span>
@@ -1579,7 +1593,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
           <section className={`${activePanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">บันทึกในเครื่อง</h2>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div data-tour="save-actions" className="mt-3 grid grid-cols-2 gap-2">
               <button type="button" onClick={saveTrip} title="บันทึกแผนการเดินทางไว้ในเครื่องนี้" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
                 <Save className="size-4" />
                 บันทึก
