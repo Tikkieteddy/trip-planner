@@ -84,10 +84,11 @@ export async function POST(request: Request) {
     }
 
     if (parsed.data.mode === "route-chargers") {
+      const isEvStationPluz = parsed.data.provider === "ev-station-pluz";
       const response = await googleJson<GooglePlacesSearchResponse>({
         url: `${placesBaseUrl}/places:searchText`,
         body: {
-          textQuery: "EV charging station สถานีชาร์จรถไฟฟ้า",
+          textQuery: isEvStationPluz ? "EV Station PluZ สถานีชาร์จรถไฟฟ้า" : "EV charging station สถานีชาร์จรถไฟฟ้า",
           languageCode: "th",
           regionCode: "TH",
           includedType: "electric_vehicle_charging_station",

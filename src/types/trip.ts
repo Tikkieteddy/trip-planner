@@ -78,6 +78,7 @@ export type TripSettings = {
   optimizeWaypointOrder: boolean;
   openNowOnly: boolean;
   minRating: number;
+  includeEvStationPluz: boolean;
 };
 
 export type RouteLeg = {
@@ -121,14 +122,26 @@ export type TourismCategory = {
   includedTypes: string[];
 };
 
+export type TripDayPlan = {
+  day: number;
+  date: string;
+  note: string;
+};
+
 export type SavedTrip = {
-  version: 1;
+  version: 1 | 2;
   savedAt: string;
   settings: TripSettings;
   origin: PlannerPlace | null;
   destination: PlannerPlace | null;
   waypoints: PlannerPlace[];
   tourismCenter: PlannerPlace | null;
+  dayPlans?: TripDayPlan[];
+  route?: RouteResult | null;
+  routeStops?: PlannerPlace[];
+  chargers?: PlannerPlace[];
+  chargerSearchPolyline?: string;
+  chargerNotice?: string;
 };
 
 export type ApiErrorResponse = {

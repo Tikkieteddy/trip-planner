@@ -58,6 +58,7 @@ export const textSearchRequestSchema = z.object({
 export const routeChargersRequestSchema = z.object({
   mode: z.literal("route-chargers"),
   encodedPolyline: z.string().min(12).max(20000),
+  provider: z.enum(["all", "ev-station-pluz"]).default("all"),
   connectorType: z.string().max(80).optional(),
   minChargerKw: z.number().min(0).max(500).optional(),
   openNowOnly: z.boolean().optional(),
@@ -117,14 +118,46 @@ export const tripSettingsSchema = z.object({
   optimizeWaypointOrder: z.boolean(),
   openNowOnly: z.boolean(),
   minRating: z.number().min(0).max(5),
+  includeEvStationPluz: z.boolean().default(true),
 });
 
 export const savedTripSchema = z.object({
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(2)]),
   savedAt: z.string().min(1),
   settings: tripSettingsSchema,
   origin: plannerPlaceSchema.nullable(),
   destination: plannerPlaceSchema.nullable(),
   waypoints: z.array(plannerPlaceSchema).max(10),
   tourismCenter: plannerPlaceSchema.nullable(),
+  dayPlans: z
+    .array(
+      z.object({
+        day: z.number().int().min(1).max(7),
+        date: z.string().min(8).max(20),
+        note: z.string().max(240),
+      }),
+    )
+    .max(7)
+    .optional(),
+  route: z
+    .object({
+      distanceMeters: z.number().min(0),
+      duration: z.string().min(1),
+      encodedPolyline: z.string().min(1).max(100000),
+      legs: z.array(
+        z.object({
+          distanceMeters: z.number().min(0),
+          duration: z.string().min(1),
+          staticDuration: z.string().optional(),
+        }),
+      ),
+      optimizedWaypointOrder: z.array(z.number().int().min(0)),
+      warnings: z.array(z.string()),
+    })
+    .nullable()
+    .optional(),
+  routeStops: z.array(plannerPlaceSchema).max(12).optional(),
+  chargers: z.array(plannerPlaceSchema).max(30).optional(),
+  chargerSearchPolyline: z.string().max(20000).optional(),
+  chargerNotice: z.string().max(800).optional(),
 });

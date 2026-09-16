@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ExternalLink, LocateFixed, MapPinned, Navigation, Plus } from "lucide-react";
+import { AlertTriangle, ExternalLink, LocateFixed, MapPinned, Navigation, Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadGoogleMaps, toGoogleLatLng } from "@/lib/maps";
 import { decodePolyline } from "@/lib/polyline";
@@ -104,6 +104,7 @@ export function GoogleMapPanel({
   const [loadError, setLoadError] = useState("");
   const [ready, setReady] = useState(false);
   const [mapSearchPlace, setMapSearchPlace] = useState<PlannerPlace | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(true);
 
   const markerConfigs = useMemo(() => {
     const configs: MarkerConfig[] = [];
@@ -280,15 +281,28 @@ export function GoogleMapPanel({
           <p className="text-sm font-black text-primary-deep">แผนที่และเส้นทาง</p>
           <p className="text-xs font-semibold text-muted">คลิกบนแผนที่เพื่อเลือกศูนย์กลางค้นหาพื้นที่ท่องเที่ยว</p>
         </div>
-        <a
-          href="https://maps.google.com"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary hover:border-cyan"
-        >
-          Google Maps
-          <ExternalLink className="size-3.5" aria-hidden="true" />
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsSearchOpen((current) => !current)}
+            aria-expanded={isSearchOpen}
+            title={isSearchOpen ? "พับกล่องค้นหาบนแผนที่" : "เปิดกล่องค้นหาบนแผนที่"}
+            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary hover:border-cyan"
+          >
+            <Search className="size-3.5" aria-hidden="true" />
+            {isSearchOpen ? "ย่อค้นหา" : "ค้นหาสถานที่"}
+          </button>
+          <a
+            href="https://maps.google.com"
+            target="_blank"
+            rel="noreferrer"
+            title="เปิด Google Maps ในหน้าต่างใหม่"
+            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary hover:border-cyan"
+          >
+            Google Maps
+            <ExternalLink className="size-3.5" aria-hidden="true" />
+          </a>
+        </div>
       </div>
       {loadError ? (
         <div className="flex min-h-[460px] flex-col items-center justify-center p-6 text-center">
@@ -298,7 +312,7 @@ export function GoogleMapPanel({
       ) : (
         <div className="relative min-h-0 flex-1">
           <div ref={mapElementRef} className={`${mapClassName} w-full bg-primary-soft`} />
-          <div className="absolute left-3 right-3 top-3 z-10 max-w-2xl sm:left-4 sm:right-auto sm:w-[min(560px,calc(100%-2rem))]">
+          {isSearchOpen ? <div className="absolute left-3 right-3 top-3 z-10 max-w-2xl sm:left-4 sm:right-auto sm:w-[min(560px,calc(100%-2rem))]">
             <div className="rounded-lg border border-border bg-white/95 p-3 shadow-[0_18px_55px_rgba(13,18,56,0.22)] backdrop-blur">
               <PlaceSearchInput
                 label="ค้นหาบนแผนที่"
@@ -354,7 +368,7 @@ export function GoogleMapPanel({
                 <p className="mt-2 text-xs font-semibold leading-5 text-muted">ค้นหาสถานที่แล้วเลือกผลลัพธ์ก่อน จากนั้นเลือกว่าจะตั้งเป็นจุดใดหรือค้นหารอบจุดนั้น</p>
               )}
             </div>
-          </div>
+          </div> : null}
           {!ready ? (
             <div className="absolute inset-0 grid place-items-center bg-white/80">
               <div className="rounded-lg border border-border bg-white px-4 py-3 text-sm font-black text-primary-deep shadow-sm">

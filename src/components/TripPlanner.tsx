@@ -7,6 +7,7 @@ import {
   BatteryCharging,
   CalendarClock,
   Car,
+  CircleHelp,
   Download,
   Eraser,
   ExternalLink,
@@ -22,6 +23,7 @@ import {
   Star,
   Trash2,
   Upload,
+  X,
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -31,7 +33,7 @@ import { postJson } from "@/lib/client-api";
 import { formatDistance, formatDuration, formatKwh, formatPercent, getDepartureIso } from "@/lib/format";
 import { decodePolyline, splitEncodedPolyline } from "@/lib/polyline";
 import { savedTripSchema } from "@/lib/schemas";
-import type { BatteryLegEstimate, LatLng, PlannerPlace, RouteResult, SavedTrip, TourismCategory, TripSettings } from "@/types/trip";
+import type { BatteryLegEstimate, LatLng, PlannerPlace, RouteResult, SavedTrip, TourismCategory, TripDayPlan, TripSettings } from "@/types/trip";
 import { GoogleMapPanel } from "@/components/GoogleMapPanel";
 import { PlaceSearchInput } from "@/components/PlaceSearchInput";
 import { AdSlot } from "@/components/AdSlot";
@@ -53,6 +55,7 @@ type PlacesResponse = {
 type PlannerSetupKey = "trip" | "vehicle" | "filters";
 type PlannerMenuKey = "route" | "itinerary" | "chargers" | "nearby" | "vehicle";
 type ChargerSortKey = "route" | "speed" | "rating" | "origin-near" | "origin-far";
+type SummaryDetailKey = "distance" | "duration" | "battery" | null;
 
 const chargerApps = [
   { pattern: /ev\s*station\s*plu[zส]|อีวี\s*สเตชั่น\s*พลัส/i, name: "EV Station PluZ", url: "https://evstationpluz.pttor.com/th/home" },
@@ -92,7 +95,24 @@ const defaultSettings: TripSettings = {
   optimizeWaypointOrder: true,
   openNowOnly: false,
   minRating: 0,
+  includeEvStationPluz: true,
 };
+
+function makeDayPlans(travelDate: string, days: number, existing: TripDayPlan[] = []) {
+  const date = new Date(`${travelDate}T12:00:00`);
+
+  return Array.from({ length: days }, (_, index) => {
+    const value = new Date(date);
+    value.setDate(value.getDate() + index);
+    const previous = existing.find((plan) => plan.day === index + 1);
+
+    return {
+      day: index + 1,
+      date: Number.isNaN(value.getTime()) ? travelDate : value.toISOString().slice(0, 10),
+      note: previous?.note ?? "",
+    };
+  });
+}
 
 function samePlace(a: PlannerPlace, b: PlannerPlace) {
   const sameId = Boolean((a.placeId && b.placeId && a.placeId === b.placeId) || a.id === b.id);
@@ -373,6 +393,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [placesLoading, setPlacesLoading] = useState(false);
   const [activeSetupPanel, setActiveSetupPanel] = useState<PlannerSetupKey>("trip");
   const [activePanel, setActivePanel] = useState<PlannerMenuKey>("route");
+  const [summaryDetail, setSummaryDetail] = useState<SummaryDetailKey>(null);
+  const [dayPlans, setDayPlans] = useState<TripDayPlan[]>(() => makeDayPlans(defaultSettings.travelDate, defaultSettings.days));
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setupScrollRef = useRef<HTMLDivElement | null>(null);
   const resultsScrollRef = useRef<HTMLDivElement | null>(null);
@@ -397,6 +419,25 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }, [activeSetupPanel]);
 
   useEffect(() => {
+    setDayPlans((current) => makeDayPlans(settings.travelDate, settings.days, current));
+  }, [settings.days, settings.travelDate]);
+
+  useEffect(() => {
+    const addMissingButtonTitles = () => {
+      document.querySelectorAll<HTMLButtonElement>("button:not([title])").forEach((button) => {
+        const label = button.getAttribute("aria-label") || button.textContent?.replace(/\s+/g, " ").trim();
+        if (label) button.title = label;
+      });
+    };
+
+    addMissingButtonTitles();
+    const observer = new MutationObserver(addMissingButtonTitles);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     const raw = window.localStorage.getItem(storageKey);
 
     if (!raw) {
@@ -411,6 +452,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       setDestination(parsed.data.destination as PlannerPlace | null);
       setWaypoints(parsed.data.waypoints as PlannerPlace[]);
       setTourismCenter(parsed.data.tourismCenter as PlannerPlace | null);
+      setDayPlans(makeDayPlans(parsed.data.settings.travelDate, parsed.data.settings.days, parsed.data.dayPlans ?? []));
+      setRoute((parsed.data.route as RouteResult | null | undefined) ?? null);
+      setRouteStops((parsed.data.routeStops as PlannerPlace[] | undefined) ?? []);
+      setChargers((parsed.data.chargers as PlannerPlace[] | undefined) ?? []);
+      setChargerSearchPolyline(parsed.data.chargerSearchPolyline ?? "");
+      setChargerNotice(parsed.data.chargerNotice ?? "");
       setStatus("โหลดทริปที่บันทึกไว้ในเครื่องแล้ว");
     }
   }, []);
@@ -456,6 +503,29 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }, [destination, origin]);
   const routeActionDisabled = routeLoading || Boolean(routeInputError);
   const directionsUrl = buildDirectionsUrl(origin, destination, waypoints, settings);
+  const summaryExplanation =
+    summaryDetail === "distance"
+      ? {
+          title: "ระยะทางรวม",
+          description: route
+            ? `ระยะทางรวมของเส้นทางที่ระบบคำนวณ คือ ${formatDistance(route.distanceMeters)} รวมต้นทาง จุดแวะ และปลายทาง`
+            : "เลือกต้นทางและปลายทาง แล้วกดคำนวณเส้นทางเพื่อดูระยะทางรวม",
+        }
+      : summaryDetail === "duration"
+        ? {
+            title: "เวลาเดินทาง",
+            description: route
+              ? `เวลาขับรถโดยประมาณ ${formatDuration(route.duration)} ยังไม่รวมเวลาพัก ชาร์จรถ และสภาพการจราจรจริง`
+              : "เลือกต้นทางและปลายทาง แล้วกดคำนวณเส้นทางเพื่อดูเวลาเดินทางโดยประมาณ",
+          }
+        : summaryDetail === "battery"
+          ? {
+              title: "สถานะแบตเตอรี่",
+              description: estimates.length
+                ? `${batterySummaryText(estimates)} คำนวณจากแบตเริ่มต้น ประสิทธิภาพรถ และระยะทางของแต่ละช่วง`
+                : "ระบบจะประเมินแบตเตอรี่หลังคำนวณเส้นทาง โดยใช้ค่ารถที่ตั้งไว้ในเมนู รถ",
+            }
+          : null;
   const setupMenuItems = [
     { key: "trip" as const, label: "ทริป", icon: Car },
     { key: "vehicle" as const, label: "รถ", icon: Zap },
@@ -683,18 +753,20 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     const maxResultCount = Math.max(1, Math.min(20, settings.maxStops + 4));
     const segments = splitEncodedPolyline(encodedPolyline, routeChargerPolylineLimit, routeChargerMaxSegments);
     const perSegmentResultCount = Math.max(3, Math.min(10, Math.ceil(maxResultCount / segments.length) + 2));
+    const providers = settings.includeEvStationPluz ? (["all", "ev-station-pluz"] as const) : (["all"] as const);
     const results = await Promise.allSettled(
-      segments.map((segment) =>
+      segments.flatMap((segment) => providers.map((provider) =>
         postJson<PlacesResponse>("/api/places", {
           mode: "route-chargers",
           encodedPolyline: segment,
+          provider,
           connectorType: settings.connectorType,
           minChargerKw: settings.minChargerKw,
           openNowOnly: settings.openNowOnly,
           minRating: settings.minRating,
           maxResultCount: perSegmentResultCount,
         }),
-      ),
+      )),
     );
     const places = results.flatMap((result) => (result.status === "fulfilled" ? result.value.places : []));
     const failedCount = results.filter((result) => result.status === "rejected").length;
@@ -843,13 +915,19 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
   function saveTrip() {
     const snapshot: SavedTrip = {
-      version: 1,
+      version: 2,
       savedAt: new Date().toISOString(),
       settings,
       origin,
       destination,
       waypoints,
       tourismCenter,
+      dayPlans,
+      route,
+      routeStops,
+      chargers,
+      chargerSearchPolyline,
+      chargerNotice,
     };
     const parsed = savedTripSchema.safeParse(snapshot);
 
@@ -859,7 +937,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     }
 
     window.localStorage.setItem(storageKey, JSON.stringify(parsed.data));
-    setStatus("บันทึกทริปไว้ในเครื่องแล้ว");
+    setStatus(route ? "บันทึกทริปและเส้นทางที่คำนวณไว้ในเครื่องแล้ว" : "บันทึกทริปไว้ในเครื่องแล้ว");
   }
 
   function clearTrip() {
@@ -868,19 +946,26 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     setDestination(null);
     setWaypoints([]);
     setTourismCenter(null);
+    setDayPlans(makeDayPlans(defaultSettings.travelDate, defaultSettings.days));
     clearComputedData();
     setStatus("ล้างข้อมูลทริปแล้ว");
   }
 
   function exportTrip() {
     const snapshot: SavedTrip = {
-      version: 1,
+      version: 2,
       savedAt: new Date().toISOString(),
       settings,
       origin,
       destination,
       waypoints,
       tourismCenter,
+      dayPlans,
+      route,
+      routeStops,
+      chargers,
+      chargerSearchPolyline,
+      chargerNotice,
     };
     const parsed = savedTripSchema.safeParse(snapshot);
 
@@ -917,8 +1002,13 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       setDestination(parsed.data.destination as PlannerPlace | null);
       setWaypoints(parsed.data.waypoints as PlannerPlace[]);
       setTourismCenter(parsed.data.tourismCenter as PlannerPlace | null);
-      clearComputedData();
-      setStatus("นำเข้าทริปจาก JSON แล้ว");
+      setDayPlans(makeDayPlans(parsed.data.settings.travelDate, parsed.data.settings.days, parsed.data.dayPlans ?? []));
+      setRoute((parsed.data.route as RouteResult | null | undefined) ?? null);
+      setRouteStops((parsed.data.routeStops as PlannerPlace[] | undefined) ?? []);
+      setChargers((parsed.data.chargers as PlannerPlace[] | undefined) ?? []);
+      setChargerSearchPolyline(parsed.data.chargerSearchPolyline ?? "");
+      setChargerNotice(parsed.data.chargerNotice ?? "");
+      setStatus(parsed.data.route ? "นำเข้าทริปและเส้นทางที่คำนวณแล้ว" : "นำเข้าทริปจาก JSON แล้ว");
     } catch {
       setError("อ่านไฟล์ JSON ไม่สำเร็จ");
     }
@@ -927,7 +1017,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   return (
     <main className="min-h-dvh bg-background">
       <header className="border-b border-white/35 bg-[linear-gradient(135deg,#070044_0%,#1700c7_72%,#006dff_100%)] text-yellow shadow-sm">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-2 px-3 py-2.5 sm:px-4 lg:px-6">
+        <div className="relative mx-auto flex max-w-[1800px] flex-col gap-2 px-3 py-2.5 sm:px-4 lg:px-6">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex min-w-[220px] flex-1 items-center gap-2">
               <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-yellow text-primary shadow-lg">
@@ -939,22 +1029,22 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               </div>
             </div>
 
-            <div className="trip-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto lg:justify-center">
-              <span className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm">
+            <div className="trip-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto lg:flex-none lg:justify-center">
+              <button type="button" onClick={() => setSummaryDetail((current) => (current === "distance" ? null : "distance"))} aria-expanded={summaryDetail === "distance"} title="อธิบายระยะทางรวม" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-yellow-soft">
                 <Navigation className="size-4 text-cyan-deep" aria-hidden="true" />
                 ระยะทาง
                 <strong className="text-sm">{route ? formatDistance(route.distanceMeters) : "รอคำนวณ"}</strong>
-              </span>
-              <span className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm">
+              </button>
+              <button type="button" onClick={() => setSummaryDetail((current) => (current === "duration" ? null : "duration"))} aria-expanded={summaryDetail === "duration"} title="อธิบายเวลาเดินทาง" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-yellow-soft">
                 <CalendarClock className="size-4 text-cyan-deep" aria-hidden="true" />
                 เวลา
                 <strong className="text-sm">{route ? formatDuration(route.duration) : "รอคำนวณ"}</strong>
-              </span>
-              <span className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm">
+              </button>
+              <button type="button" onClick={() => setSummaryDetail((current) => (current === "battery" ? null : "battery"))} aria-expanded={summaryDetail === "battery"} title="อธิบายการประเมินแบตเตอรี่" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-yellow-soft">
                 <BatteryCharging className="size-4 text-cyan-deep" aria-hidden="true" />
                 แบต
                 <strong className="max-w-40 truncate text-sm">{estimates.length ? batterySummaryText(estimates) : "ยังไม่ประเมิน"}</strong>
-              </span>
+              </button>
             </div>
 
             <div className="flex shrink-0 items-center">
@@ -972,6 +1062,18 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               </button>
             </div>
           </div>
+          {summaryExplanation ? (
+            <section role="status" className="absolute left-3 right-3 top-full z-30 mt-1 rounded-lg border border-yellow/60 bg-white p-3 text-primary-deep shadow-xl sm:left-auto sm:right-4 sm:w-[380px]">
+              <div className="flex items-start gap-3">
+                <CircleHelp className="mt-0.5 size-5 shrink-0 text-cyan-deep" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm font-black">{summaryExplanation.title}</h2>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-muted">{summaryExplanation.description}</p>
+                </div>
+                <button type="button" onClick={() => setSummaryDetail(null)} title="ปิดคำอธิบาย" aria-label="ปิดคำอธิบาย" className="grid size-8 shrink-0 place-items-center rounded-md border border-border text-primary hover:bg-primary-soft"><X className="size-4" /></button>
+              </div>
+            </section>
+          ) : null}
         </div>
       </header>
 
@@ -1072,6 +1174,34 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 </label>
                 <NumberField label="จำนวนวัน" value={settings.days} min={1} max={7} unit="วัน" onChange={(value) => updateSetting("days", value)} />
               </div>
+              {settings.days > 1 ? (
+                <section className="rounded-lg border border-cyan/30 bg-blue-50 p-3" aria-label="แผนรายวันต่อเนื่อง">
+                  <div className="flex items-center gap-2">
+                    <CalendarClock className="size-4 text-cyan-deep" aria-hidden="true" />
+                    <div>
+                      <h3 className="text-sm font-black text-primary-deep">แผนรายวันต่อเนื่อง</h3>
+                      <p className="text-xs font-semibold leading-5 text-muted">ระบบเรียงวันถัดไปให้อัตโนมัติตามจำนวนวันที่เลือก</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {dayPlans.map((plan) => (
+                      <label key={plan.day} className="grid grid-cols-[auto_1fr] items-center gap-2 rounded-md border border-border bg-white p-2">
+                        <span className="rounded-md bg-primary px-2 py-1 text-xs font-black text-yellow">วันที่ {plan.day}</span>
+                        <span className="min-w-0">
+                          <span className="block text-xs font-black text-primary-deep">{new Date(`${plan.date}T12:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
+                          <input
+                            value={plan.note}
+                            onChange={(event) => setDayPlans((current) => current.map((item) => (item.day === plan.day ? { ...item, note: event.target.value } : item)))}
+                            placeholder="บันทึกแผนของวันนี้ (ไม่บังคับ)"
+                            title={`บันทึกแผนวันที่ ${plan.day}`}
+                            className="mt-1 w-full border-b border-border bg-transparent pb-1 text-xs font-semibold text-primary-deep outline-none focus:border-primary"
+                          />
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
             </div>
           </section>
 
@@ -1136,6 +1266,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </div>
             <div className="mt-3 space-y-2">
               <ToggleRow label="เปิดอยู่ตอนนี้เท่านั้น" checked={settings.openNowOnly} onChange={(value) => updateSetting("openNowOnly", value)} />
+              <ToggleRow label="ค้นหา EV Station PluZ เพิ่มเติม" checked={settings.includeEvStationPluz} onChange={(value) => updateSetting("includeEvStationPluz", value)} />
               <ToggleRow label="เลี่ยงค่าผ่านทาง" checked={settings.avoidTolls} onChange={(value) => updateSetting("avoidTolls", value)} />
               <ToggleRow label="เลี่ยงทางด่วน" checked={settings.avoidHighways} onChange={(value) => updateSetting("avoidHighways", value)} />
               <ToggleRow label="เลี่ยงเรือข้ามฟาก" checked={settings.avoidFerries} onChange={(value) => updateSetting("avoidFerries", value)} />
