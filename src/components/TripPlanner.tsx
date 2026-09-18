@@ -1168,7 +1168,23 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     setCloudSyncMessage("Route จะเก็บไว้เฉพาะเบราว์เซอร์เครื่องนี้");
   }
 
+  function requireSignedInForRoutes() {
+    if (!isAuthLoaded) {
+      setError("กำลังตรวจสอบบัญชีผู้ใช้ กรุณารอสักครู่");
+      return false;
+    }
+
+    if (!isSignedIn) {
+      setError("เข้าสู่ระบบก่อนจึงจะบันทึก Route ได้ คุณยังคำนวณเส้นทางได้ตามปกติ");
+      return false;
+    }
+
+    return true;
+  }
+
   function saveTrip() {
+    if (!requireSignedInForRoutes()) return;
+
     const snapshot = createTripSnapshot();
     const parsed = savedTripSchema.safeParse(snapshot);
 
@@ -1202,10 +1218,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }
 
   function openSavedRoute(savedRoute: SavedRoute) {
+    if (!requireSignedInForRoutes()) return;
+
     applyTripSnapshot(savedRoute, `เปิด route “${savedRoute.name}” แล้ว`);
   }
 
   function removeSavedRoute(savedRoute: SavedRoute) {
+    if (!requireSignedInForRoutes()) return;
+
     const nextRoutes = savedRoutes.filter((item) => item.id !== savedRoute.id);
     persistSavedRoutes(nextRoutes);
     setStatus(`ลบ route “${savedRoute.name}” ออกจากรายการแล้ว`);
@@ -1224,6 +1244,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }
 
   function exportTrip() {
+    if (!requireSignedInForRoutes()) return;
+
     const snapshot = createTripSnapshot();
     const parsed = savedTripSchema.safeParse(snapshot);
 
@@ -1242,6 +1264,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }
 
   async function importTrip(file: File | undefined) {
+    if (!requireSignedInForRoutes()) return;
+
     if (!file) {
       return;
     }
@@ -1999,8 +2023,29 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           <section className={`${activePanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-black text-primary-deep">Route ที่บันทึก</h2>
-              <span className="rounded-md bg-primary-soft px-2 py-1 text-xs font-black text-primary">{savedRoutes.length}/{maxSavedRoutes}</span>
+              {isSignedIn ? <span className="rounded-md bg-primary-soft px-2 py-1 text-xs font-black text-primary">{savedRoutes.length}/{maxSavedRoutes}</span> : null}
             </div>
+            {!isAuthLoaded ? (
+              <p className="mt-3 rounded-lg border border-cyan/35 bg-cyan/10 p-3 text-xs font-bold leading-5 text-primary-deep">กำลังตรวจสอบบัญชีผู้ใช้</p>
+            ) : !isSignedIn ? (
+              <section className="mt-3 rounded-lg border border-cyan/35 bg-cyan/10 p-4" aria-label="เข้าสู่ระบบเพื่อบันทึก Route">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white text-cyan-deep shadow-sm">
+                    <Cloud className="size-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-black text-primary-deep">เข้าสู่ระบบเพื่อบันทึก Route</h3>
+                    <p className="mt-1 text-xs font-bold leading-5 text-muted">ยังไม่ล็อกอินสามารถค้นหาและคำนวณเส้นทางได้ แต่จะไม่สามารถบันทึก เปิด นำเข้า หรือส่งออก Route</p>
+                    <SignInButton mode="modal">
+                      <button type="button" title="เข้าสู่ระบบเพื่อบันทึก Route" className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+                        <LogIn className="size-4" aria-hidden="true" />
+                        เข้าสู่ระบบ
+                      </button>
+                    </SignInButton>
+                  </div>
+                </div>
+              </section>
+            ) : <>
             <section className="mt-3 rounded-lg border border-cyan/35 bg-cyan/10 p-3" aria-label="Cloud Sync">
               <div className="flex items-start gap-2">
                 <span className="grid size-8 shrink-0 place-items-center rounded-md bg-white text-cyan-deep shadow-sm">
@@ -2008,13 +2053,6 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 </span>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-black text-primary-deep">Cloud Sync</h3>
-                  {!isAuthLoaded ? (
-                    <p className="mt-1 text-xs font-bold leading-5 text-muted">กำลังตรวจสอบบัญชีผู้ใช้</p>
-                  ) : !isSignedIn ? (
-                    <>
-                      <p className="mt-1 text-xs font-bold leading-5 text-muted">เข้าสู่ระบบจากปุ่มบนแถบหัวเว็บ เพื่อเปิด Route เดิมจากมือถือหรือคอมพิวเตอร์เครื่องอื่น</p>
-                    </>
-                  ) : (
                     <>
                       <p className="mt-1 text-xs font-bold leading-5 text-muted">
                         บัญชี {user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "ของคุณ"}
@@ -2055,7 +2093,6 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                       </div>
                       {cloudSyncMessage ? <p className="mt-2 text-xs font-bold leading-5 text-primary-deep">{cloudSyncMessage}</p> : null}
                     </>
-                  )}
                 </div>
               </div>
             </section>
@@ -2144,6 +2181,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 ? "Route มีสำเนาในเบราว์เซอร์ และซิงก์เข้าบัญชี Cloud นี้แล้ว ไม่บันทึก API key"
                 : "Route ทั้งหมดเก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น จนกว่าจะเลือกเปิด Cloud Sync"}
             </p>
+            </>}
           </section>
           </div>
         </aside>
