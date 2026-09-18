@@ -1,8 +1,8 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 
-export default clerkMiddleware({
-  frontendApiProxy: { enabled: true },
-});
+// The public Vercel alias is not registered as a Clerk Frontend API proxy host.
+// Use Clerk's managed frontend API host so authentication remains available.
+export default clerkMiddleware();
 
 export const config = {
   matcher: [
