@@ -25,6 +25,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  Share2,
   Star,
   Trash2,
   Upload,
@@ -79,6 +80,7 @@ const storageKey = "tikkie-trip-v1";
 const savedRouteLibraryKey = "tikkie-trip-library-v1";
 const cloudSyncPreferenceKey = "tikkie-trip-cloud-sync-preference-v1";
 const maxSavedRoutes = 25;
+const publicAppUrl = "https://trip-ev-plan.vercel.app/";
 const routeChargerPolylineLimit = 18000;
 const routeChargerMaxSegments = 10;
 const earthRadiusMeters = 6371000;
@@ -1182,6 +1184,36 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     return true;
   }
 
+  function openImportPicker() {
+    if (!requireSignedInForRoutes()) return;
+
+    fileInputRef.current?.click();
+  }
+
+  async function shareRoute() {
+    if (!origin || !destination) {
+      setError("เลือกต้นทางและปลายทางก่อนจึงจะแชร์ Route ได้");
+      return;
+    }
+
+    const name = routeName.trim() || defaultRouteName(origin, destination, settings.travelDate);
+    const text = `Route: ${name}\nเส้นทาง Google Maps: ${directionsUrl}\nวางแผนทริป EV ต่อได้ที่ ${publicAppUrl}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: name, text, url: publicAppUrl });
+        setStatus("เปิดหน้าต่างแชร์ Route แล้ว พร้อมลิงก์กลับมายัง Tikkie Trip");
+        return;
+      }
+
+      await navigator.clipboard.writeText(text);
+      setStatus("คัดลอกข้อความแชร์ Route แล้ว พร้อมลิงก์กลับมายัง Tikkie Trip");
+    } catch (shareError) {
+      if (shareError instanceof DOMException && shareError.name === "AbortError") return;
+      setError("แชร์ Route ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    }
+  }
+
   function saveTrip() {
     if (!requireSignedInForRoutes()) return;
 
@@ -2023,29 +2055,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           <section className={`${activePanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-black text-primary-deep">Route ที่บันทึก</h2>
-              {isSignedIn ? <span className="rounded-md bg-primary-soft px-2 py-1 text-xs font-black text-primary">{savedRoutes.length}/{maxSavedRoutes}</span> : null}
+              <span className="rounded-md bg-primary-soft px-2 py-1 text-xs font-black text-primary">{savedRoutes.length}/{maxSavedRoutes}</span>
             </div>
-            {!isAuthLoaded ? (
-              <p className="mt-3 rounded-lg border border-cyan/35 bg-cyan/10 p-3 text-xs font-bold leading-5 text-primary-deep">กำลังตรวจสอบบัญชีผู้ใช้</p>
-            ) : !isSignedIn ? (
-              <section className="mt-3 rounded-lg border border-cyan/35 bg-cyan/10 p-4" aria-label="เข้าสู่ระบบเพื่อบันทึก Route">
-                <div className="flex items-start gap-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white text-cyan-deep shadow-sm">
-                    <Cloud className="size-4" aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-black text-primary-deep">เข้าสู่ระบบเพื่อบันทึก Route</h3>
-                    <p className="mt-1 text-xs font-bold leading-5 text-muted">ยังไม่ล็อกอินสามารถค้นหาและคำนวณเส้นทางได้ แต่จะไม่สามารถบันทึก เปิด นำเข้า หรือส่งออก Route</p>
-                    <SignInButton mode="modal">
-                      <button type="button" title="เข้าสู่ระบบเพื่อบันทึก Route" className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
-                        <LogIn className="size-4" aria-hidden="true" />
-                        เข้าสู่ระบบ
-                      </button>
-                    </SignInButton>
-                  </div>
-                </div>
-              </section>
-            ) : <>
             <section className="mt-3 rounded-lg border border-cyan/35 bg-cyan/10 p-3" aria-label="Cloud Sync">
               <div className="flex items-start gap-2">
                 <span className="grid size-8 shrink-0 place-items-center rounded-md bg-white text-cyan-deep shadow-sm">
@@ -2053,6 +2064,19 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 </span>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-black text-primary-deep">Cloud Sync</h3>
+                  {!isAuthLoaded ? (
+                    <p className="mt-1 text-xs font-bold leading-5 text-muted">กำลังตรวจสอบบัญชีผู้ใช้</p>
+                  ) : !isSignedIn ? (
+                    <>
+                      <p className="mt-1 text-xs font-bold leading-5 text-muted">คำนวณ Route ได้ทันที แต่ต้องเข้าสู่ระบบก่อนจึงจะบันทึก เปิด ลบ นำเข้า หรือส่งออก Route ได้</p>
+                      <SignInButton mode="modal">
+                        <button type="button" title="เข้าสู่ระบบเพื่อบันทึก Route" className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+                          <LogIn className="size-3.5" aria-hidden="true" />
+                          เข้าสู่ระบบ
+                        </button>
+                      </SignInButton>
+                    </>
+                  ) : (
                     <>
                       <p className="mt-1 text-xs font-bold leading-5 text-muted">
                         บัญชี {user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "ของคุณ"}
@@ -2093,6 +2117,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                       </div>
                       {cloudSyncMessage ? <p className="mt-2 text-xs font-bold leading-5 text-primary-deep">{cloudSyncMessage}</p> : null}
                     </>
+                  )}
                 </div>
               </div>
             </section>
@@ -2101,10 +2126,19 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               <input
                 value={routeName}
                 maxLength={120}
-                onChange={(event) => setRouteName(event.target.value)}
+                readOnly={!isSignedIn}
+                onFocus={() => {
+                  if (!isSignedIn) requireSignedInForRoutes();
+                }}
+                onClick={() => {
+                  if (!isSignedIn) requireSignedInForRoutes();
+                }}
+                onChange={(event) => {
+                  if (isSignedIn) setRouteName(event.target.value);
+                }}
                 placeholder="เช่น ทริปเขาค้อ พ.ย. 2569"
-                title="ตั้งชื่อ route ก่อนบันทึก"
-                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-bold text-primary-deep outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                title={isSignedIn ? "ตั้งชื่อ route ก่อนบันทึก" : "กรุณา log in ก่อนตั้งชื่อ Route"}
+                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-bold text-primary-deep outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 read-only:cursor-not-allowed read-only:bg-surface-strong"
               />
             </label>
             <div data-tour="save-actions" className="mt-3 grid grid-cols-2 gap-2">
@@ -2120,9 +2154,13 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 <Download className="size-4" />
                 ส่งออก JSON
               </button>
-              <button type="button" onClick={() => fileInputRef.current?.click()} title="นำเข้าแผนการเดินทางจากไฟล์ JSON" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary">
+              <button type="button" onClick={openImportPicker} title="นำเข้าแผนการเดินทางจากไฟล์ JSON" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary">
                 <Upload className="size-4" />
                 นำเข้า
+              </button>
+              <button type="button" onClick={() => void shareRoute()} title="แชร์ Route พร้อมลิงก์กลับมายัง Tikkie Trip" className="col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-cyan/50 bg-cyan/10 px-3 text-xs font-black text-primary hover:bg-cyan/20">
+                <Share2 className="size-4" />
+                แชร์ route
               </button>
             </div>
             <input
@@ -2181,7 +2219,6 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 ? "Route มีสำเนาในเบราว์เซอร์ และซิงก์เข้าบัญชี Cloud นี้แล้ว ไม่บันทึก API key"
                 : "Route ทั้งหมดเก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น จนกว่าจะเลือกเปิด Cloud Sync"}
             </p>
-            </>}
           </section>
           </div>
         </aside>
