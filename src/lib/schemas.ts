@@ -158,7 +158,9 @@ export const savedTripSchema = z.object({
     .optional(),
   routeStops: z.array(plannerPlaceSchema).max(12).optional(),
   chargers: z.array(plannerPlaceSchema).max(30).optional(),
-  chargerSearchPolyline: z.string().max(20000).optional(),
+  // Long routes are split into 20,000-character requests when searching for chargers,
+  // but the original encoded polyline must be retained to reopen a saved trip.
+  chargerSearchPolyline: z.string().max(100000).optional(),
   chargerNotice: z.string().max(800).optional(),
 });
 

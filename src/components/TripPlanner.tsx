@@ -176,6 +176,14 @@ function defaultRouteName(origin: PlannerPlace | null, destination: PlannerPlace
   return `ทริป EV ${travelDate}`;
 }
 
+function schemaIssueSummary(issues: Array<{ path: PropertyKey[]; message: string }>) {
+  const issue = issues[0];
+  if (!issue) return "ข้อมูลไม่อยู่ในรูปแบบที่รองรับ";
+
+  const field = issue.path.filter((part) => typeof part === "string").join(".");
+  return field ? `${field}: ${issue.message}` : issue.message;
+}
+
 function samePlace(a: PlannerPlace, b: PlannerPlace) {
   const sameId = Boolean((a.placeId && b.placeId && a.placeId === b.placeId) || a.id === b.id);
   const sameName = a.name.trim().toLocaleLowerCase("th-TH") === b.name.trim().toLocaleLowerCase("th-TH");
@@ -1165,7 +1173,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     const parsed = savedTripSchema.safeParse(snapshot);
 
     if (!parsed.success) {
-      setError("ข้อมูลทริปไม่ผ่าน schema จึงยังไม่บันทึก");
+      setError(`ข้อมูลทริปยังบันทึกไม่ได้: ${schemaIssueSummary(parsed.error.issues)}`);
       return;
     }
     const name = routeName.trim() || defaultRouteName(origin, destination, settings.travelDate);
@@ -1177,11 +1185,16 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     });
 
     if (!routeRecord.success) {
-      setError("ชื่อ route ไม่ถูกต้อง จึงยังไม่บันทึก");
+      setError(`ข้อมูล route ยังบันทึกไม่ได้: ${schemaIssueSummary(routeRecord.error.issues)}`);
       return;
     }
 
     const nextRoutes = persistSavedRoutes([routeRecord.data as SavedRoute, ...savedRoutes]);
+    if (!nextRoutes.some((item) => item.id === routeId)) {
+      setError("บันทึก route ในเบราว์เซอร์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+      return;
+    }
+
     window.localStorage.setItem(storageKey, JSON.stringify(parsed.data));
     setRouteName(name);
     setStatus(route ? `บันทึก route “${name}” พร้อมเส้นทางและจุดชาร์จแล้ว` : `บันทึก route “${name}” แล้ว`);
@@ -1281,7 +1294,34 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               </button>
             </div>
 
-            <div className="flex shrink-0 items-center">
+            <div className="flex shrink-0 items-center gap-2">
+              {!isAuthLoaded ? (
+                <span className="inline-flex min-h-10 items-center rounded-lg border border-white/25 px-3 text-xs font-black text-yellow-soft">กำลังตรวจบัญชี</span>
+              ) : !isSignedIn ? (
+                <SignInButton mode="modal">
+                  <button type="button" title="เข้าสู่ระบบเพื่อบันทึกและซิงก์ Route" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/40 bg-white/10 px-3 text-xs font-black text-yellow hover:bg-white/20">
+                    <LogIn className="size-4" aria-hidden="true" />
+                    เข้าสู่ระบบ
+                  </button>
+                </SignInButton>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActivePanel("vehicle")}
+                    title="เปิด Route ที่บันทึกและการตั้งค่า Cloud Sync"
+                    className="inline-flex min-h-10 max-w-44 items-center gap-2 rounded-lg border border-white/40 bg-white/10 px-3 text-xs font-black text-yellow hover:bg-white/20"
+                  >
+                    <Cloud className="size-4 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{user?.firstName ?? user?.primaryEmailAddress?.emailAddress ?? "บัญชีของฉัน"}</span>
+                  </button>
+                  <SignOutButton redirectUrl="/">
+                    <button type="button" title="ออกจากระบบ" aria-label="ออกจากระบบ" className="grid size-10 place-items-center rounded-lg border border-white/40 bg-white/10 text-yellow hover:bg-white/20">
+                      <LogOut className="size-4" aria-hidden="true" />
+                    </button>
+                  </SignOutButton>
+                </>
+              )}
               <TutorialGuide onStepEnter={enterTutorialStep} onClose={closeTutorial} />
               <button
                 data-tour="calculate"
@@ -1972,13 +2012,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     <p className="mt-1 text-xs font-bold leading-5 text-muted">กำลังตรวจสอบบัญชีผู้ใช้</p>
                   ) : !isSignedIn ? (
                     <>
-                      <p className="mt-1 text-xs font-bold leading-5 text-muted">เข้าสู่ระบบเพื่อเปิด Route เดิมจากมือถือหรือคอมพิวเตอร์เครื่องอื่น</p>
-                      <SignInButton mode="modal">
-                        <button type="button" title="เข้าสู่ระบบเพื่อใช้ Cloud Sync" className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
-                          <LogIn className="size-3.5" aria-hidden="true" />
-                          เข้าสู่ระบบ
-                        </button>
-                      </SignInButton>
+                      <p className="mt-1 text-xs font-bold leading-5 text-muted">เข้าสู่ระบบจากปุ่มบนแถบหัวเว็บ เพื่อเปิด Route เดิมจากมือถือหรือคอมพิวเตอร์เครื่องอื่น</p>
                     </>
                   ) : (
                     <>
