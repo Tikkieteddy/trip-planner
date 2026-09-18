@@ -8,15 +8,20 @@ import {
   CalendarClock,
   Car,
   CircleHelp,
+  Cloud,
+  CloudUpload,
   Download,
   Eraser,
   ExternalLink,
   FileJson,
   Info,
+  LogIn,
+  LogOut,
   LoaderCircle,
   MapPinned,
   Navigation,
   Plus,
+  RefreshCw,
   RotateCcw,
   Save,
   Search,
@@ -26,6 +31,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { SignInButton, SignOutButton, useUser } from "@clerk/nextjs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { connectorLabel, connectorOptions, nearbyActivityTypes, tourismCategories } from "@/data/place-types";
 import { estimateBatteryByLegs, batterySummaryText } from "@/lib/battery";
@@ -71,10 +77,56 @@ type RecommendationBadge = {
 
 const storageKey = "tikkie-trip-v1";
 const savedRouteLibraryKey = "tikkie-trip-library-v1";
+const cloudSyncPreferenceKey = "tikkie-trip-cloud-sync-preference-v1";
 const maxSavedRoutes = 25;
 const routeChargerPolylineLimit = 18000;
 const routeChargerMaxSegments = 10;
 const earthRadiusMeters = 6371000;
+
+type CloudSyncPreference = "undecided" | "enabled" | "local";
+
+function savedRouteTimestamp(route: SavedRoute) {
+  const timestamp = Date.parse(route.savedAt);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function normalizeSavedRoutes(routes: SavedRoute[]) {
+  return [...routes].sort((a, b) => savedRouteTimestamp(b) - savedRouteTimestamp(a)).slice(0, maxSavedRoutes);
+}
+
+function mergeSavedRoutes(localRoutes: SavedRoute[], cloudRoutes: SavedRoute[]) {
+  const merged = new Map<string, SavedRoute>();
+
+  for (const route of [...localRoutes, ...cloudRoutes]) {
+    const current = merged.get(route.id);
+    if (!current || savedRouteTimestamp(route) >= savedRouteTimestamp(current)) {
+      merged.set(route.id, route);
+    }
+  }
+
+  return normalizeSavedRoutes([...merged.values()]);
+}
+
+function readCloudSyncPreference(userId: string): CloudSyncPreference {
+  try {
+    const raw = window.localStorage.getItem(cloudSyncPreferenceKey);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, CloudSyncPreference>) : {};
+    const preference = parsed[userId];
+    return preference === "enabled" || preference === "local" ? preference : "undecided";
+  } catch {
+    return "undecided";
+  }
+}
+
+function writeCloudSyncPreference(userId: string, preference: Exclude<CloudSyncPreference, "undecided">) {
+  try {
+    const raw = window.localStorage.getItem(cloudSyncPreferenceKey);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, CloudSyncPreference>) : {};
+    window.localStorage.setItem(cloudSyncPreferenceKey, JSON.stringify({ ...parsed, [userId]: preference }));
+  } catch {
+    // Cloud sync remains available even if a browser blocks local storage preferences.
+  }
+}
 
 const defaultSettings: TripSettings = {
   profileName: "BYD Dolphin Extended Range",
@@ -384,6 +436,7 @@ function PlaceListCard({
 }
 
 export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
+  const { isLoaded: isAuthLoaded, isSignedIn, user } = useUser();
   const [settings, setSettings] = useState<TripSettings>(defaultSettings);
   const [origin, setOrigin] = useState<PlannerPlace | null>(null);
   const [destination, setDestination] = useState<PlannerPlace | null>(null);
@@ -407,9 +460,87 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [dayPlans, setDayPlans] = useState<TripDayPlan[]>(() => makeDayPlans(defaultSettings.travelDate, defaultSettings.days));
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
   const [routeName, setRouteName] = useState(() => defaultRouteName(null, null, defaultSettings.travelDate));
+  const [routeLibraryLoaded, setRouteLibraryLoaded] = useState(false);
+  const [cloudSyncPreference, setCloudSyncPreference] = useState<CloudSyncPreference>("undecided");
+  const [cloudSyncPromptOpen, setCloudSyncPromptOpen] = useState(false);
+  const [cloudSyncBusy, setCloudSyncBusy] = useState(false);
+  const [cloudSyncMessage, setCloudSyncMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setupScrollRef = useRef<HTMLDivElement | null>(null);
   const resultsScrollRef = useRef<HTMLDivElement | null>(null);
+  const savedRoutesRef = useRef<SavedRoute[]>([]);
+  const cloudLoadedUserIdRef = useRef<string | null>(null);
+
+  const persistSavedRoutes = useCallback((routes: SavedRoute[]) => {
+    const parsed = savedRouteLibrarySchema.safeParse(normalizeSavedRoutes(routes));
+    if (!parsed.success) return savedRoutesRef.current;
+
+    const nextRoutes = parsed.data as SavedRoute[];
+    window.localStorage.setItem(savedRouteLibraryKey, JSON.stringify(nextRoutes));
+    savedRoutesRef.current = nextRoutes;
+    setSavedRoutes(nextRoutes);
+    return nextRoutes;
+  }, []);
+
+  const requestCloudRoutes = useCallback(async () => {
+    const response = await fetch("/api/cloud-routes", { cache: "no-store" });
+    const payload = (await response.json().catch(() => null)) as { routes?: unknown; error?: string } | null;
+    if (!response.ok) throw new Error(payload?.error ?? "อ่าน Route จาก Cloud ไม่สำเร็จ");
+
+    const parsed = savedRouteLibrarySchema.safeParse(payload?.routes);
+    if (!parsed.success) throw new Error("ข้อมูล Route จาก Cloud ไม่ถูกต้อง");
+    return parsed.data as SavedRoute[];
+  }, []);
+
+  const syncRoutesToCloud = useCallback(
+    async (routes: SavedRoute[], successMessage = "ซิงก์ Route กับ Cloud แล้ว") => {
+      if (!isSignedIn || !user || cloudSyncPreference !== "enabled") return;
+
+      setCloudSyncBusy(true);
+      try {
+        const response = await fetch("/api/cloud-routes", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ routes }),
+        });
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        if (!response.ok) throw new Error(payload?.error ?? "บันทึก Route ใน Cloud ไม่สำเร็จ");
+        setCloudSyncMessage(successMessage);
+      } catch (syncError) {
+        setCloudSyncMessage(syncError instanceof Error ? syncError.message : "ซิงก์ Route ไม่สำเร็จ");
+      } finally {
+        setCloudSyncBusy(false);
+      }
+    },
+    [cloudSyncPreference, isSignedIn, user],
+  );
+
+  const mergeCloudRoutes = useCallback(
+    async (userId: string, successMessage: string) => {
+      setCloudSyncBusy(true);
+      try {
+        const cloudRoutes = await requestCloudRoutes();
+        const mergedRoutes = persistSavedRoutes(mergeSavedRoutes(savedRoutesRef.current, cloudRoutes));
+        const response = await fetch("/api/cloud-routes", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ routes: mergedRoutes }),
+        });
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        if (!response.ok) throw new Error(payload?.error ?? "บันทึก Route ใน Cloud ไม่สำเร็จ");
+        writeCloudSyncPreference(userId, "enabled");
+        setCloudSyncPreference("enabled");
+        setCloudSyncMessage(successMessage);
+        return true;
+      } catch (syncError) {
+        setCloudSyncMessage(syncError instanceof Error ? syncError.message : "ซิงก์ Route ไม่สำเร็จ");
+        return false;
+      } finally {
+        setCloudSyncBusy(false);
+      }
+    },
+    [persistSavedRoutes, requestCloudRoutes],
+  );
 
   const enterTutorialStep = useCallback((id: string) => {
     if (id === "origin" || id === "destination") setActiveSetupPanel("trip");
@@ -479,16 +610,52 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     const raw = window.localStorage.getItem(savedRouteLibraryKey);
 
     if (!raw) {
+      setRouteLibraryLoaded(true);
       return;
     }
 
     try {
       const parsed = savedRouteLibrarySchema.safeParse(JSON.parse(raw) as unknown);
-      if (parsed.success) setSavedRoutes(parsed.data as SavedRoute[]);
+      if (parsed.success) {
+        const routes = parsed.data as SavedRoute[];
+        savedRoutesRef.current = routes;
+        setSavedRoutes(routes);
+      }
     } catch {
       // Keep the active trip usable even when an older library entry is malformed.
+    } finally {
+      setRouteLibraryLoaded(true);
     }
   }, []);
+
+  useEffect(() => {
+    savedRoutesRef.current = savedRoutes;
+  }, [savedRoutes]);
+
+  useEffect(() => {
+    if (!routeLibraryLoaded || !isAuthLoaded) return;
+
+    if (!isSignedIn || !user) {
+      cloudLoadedUserIdRef.current = null;
+      setCloudSyncPreference("undecided");
+      setCloudSyncPromptOpen(false);
+      return;
+    }
+
+    const preference = readCloudSyncPreference(user.id);
+    setCloudSyncPreference(preference);
+
+    if (preference === "undecided") {
+      setCloudSyncPromptOpen(true);
+      return;
+    }
+
+    setCloudSyncPromptOpen(false);
+    if (preference === "enabled" && cloudLoadedUserIdRef.current !== user.id) {
+      cloudLoadedUserIdRef.current = user.id;
+      void mergeCloudRoutes(user.id, "รวม Route ในเครื่องและ Cloud แล้ว");
+    }
+  }, [isAuthLoaded, isSignedIn, mergeCloudRoutes, routeLibraryLoaded, user]);
 
   const routeWaypoints = useMemo(() => {
     if (settings.tripType === "round-trip" && destination) {
@@ -977,6 +1144,22 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     setError("");
   }
 
+  async function enableCloudSync() {
+    if (!user) return;
+
+    const synced = await mergeCloudRoutes(user.id, "เปิด Cloud Sync และรวม Route ของคุณแล้ว");
+    if (synced) setCloudSyncPromptOpen(false);
+  }
+
+  function keepRoutesOnThisDevice() {
+    if (!user) return;
+
+    writeCloudSyncPreference(user.id, "local");
+    setCloudSyncPreference("local");
+    setCloudSyncPromptOpen(false);
+    setCloudSyncMessage("Route จะเก็บไว้เฉพาะเบราว์เซอร์เครื่องนี้");
+  }
+
   function saveTrip() {
     const snapshot = createTripSnapshot();
     const parsed = savedTripSchema.safeParse(snapshot);
@@ -998,12 +1181,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       return;
     }
 
-    const nextRoutes = [routeRecord.data as SavedRoute, ...savedRoutes].slice(0, maxSavedRoutes);
+    const nextRoutes = persistSavedRoutes([routeRecord.data as SavedRoute, ...savedRoutes]);
     window.localStorage.setItem(storageKey, JSON.stringify(parsed.data));
-    window.localStorage.setItem(savedRouteLibraryKey, JSON.stringify(nextRoutes));
-    setSavedRoutes(nextRoutes);
     setRouteName(name);
     setStatus(route ? `บันทึก route “${name}” พร้อมเส้นทางและจุดชาร์จแล้ว` : `บันทึก route “${name}” แล้ว`);
+    void syncRoutesToCloud(nextRoutes, `บันทึก route “${name}” ลง Cloud แล้ว`);
   }
 
   function openSavedRoute(savedRoute: SavedRoute) {
@@ -1012,9 +1194,9 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
   function removeSavedRoute(savedRoute: SavedRoute) {
     const nextRoutes = savedRoutes.filter((item) => item.id !== savedRoute.id);
-    window.localStorage.setItem(savedRouteLibraryKey, JSON.stringify(nextRoutes));
-    setSavedRoutes(nextRoutes);
+    persistSavedRoutes(nextRoutes);
     setStatus(`ลบ route “${savedRoute.name}” ออกจากรายการแล้ว`);
+    void syncRoutesToCloud(nextRoutes, `ลบ route “${savedRoute.name}” จาก Cloud แล้ว`);
   }
 
   function clearTrip() {
@@ -1779,6 +1961,70 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               <h2 className="text-lg font-black text-primary-deep">Route ที่บันทึก</h2>
               <span className="rounded-md bg-primary-soft px-2 py-1 text-xs font-black text-primary">{savedRoutes.length}/{maxSavedRoutes}</span>
             </div>
+            <section className="mt-3 rounded-lg border border-cyan/35 bg-cyan/10 p-3" aria-label="Cloud Sync">
+              <div className="flex items-start gap-2">
+                <span className="grid size-8 shrink-0 place-items-center rounded-md bg-white text-cyan-deep shadow-sm">
+                  <Cloud className="size-4" aria-hidden="true" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-black text-primary-deep">Cloud Sync</h3>
+                  {!isAuthLoaded ? (
+                    <p className="mt-1 text-xs font-bold leading-5 text-muted">กำลังตรวจสอบบัญชีผู้ใช้</p>
+                  ) : !isSignedIn ? (
+                    <>
+                      <p className="mt-1 text-xs font-bold leading-5 text-muted">เข้าสู่ระบบเพื่อเปิด Route เดิมจากมือถือหรือคอมพิวเตอร์เครื่องอื่น</p>
+                      <SignInButton mode="modal">
+                        <button type="button" title="เข้าสู่ระบบเพื่อใช้ Cloud Sync" className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+                          <LogIn className="size-3.5" aria-hidden="true" />
+                          เข้าสู่ระบบ
+                        </button>
+                      </SignInButton>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-1 text-xs font-bold leading-5 text-muted">
+                        บัญชี {user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "ของคุณ"}
+                      </p>
+                      <p className="mt-1 text-xs font-bold leading-5 text-primary-deep">
+                        {cloudSyncPreference === "enabled"
+                          ? cloudSyncBusy
+                            ? "กำลังซิงก์ Route กับ Cloud"
+                            : "เปิด Cloud Sync แล้ว"
+                          : cloudSyncPreference === "local"
+                            ? "เก็บ Route ไว้เฉพาะเครื่องนี้"
+                            : "รอเลือกการเก็บข้อมูล"}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {cloudSyncPreference === "enabled" ? (
+                          <button
+                            type="button"
+                            onClick={() => user && void mergeCloudRoutes(user.id, "ซิงก์ Route ล่าสุดกับ Cloud แล้ว")}
+                            disabled={cloudSyncBusy}
+                            title="รวม Route ล่าสุดจาก Cloud และเครื่องนี้"
+                            className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow disabled:cursor-wait disabled:opacity-60"
+                          >
+                            {cloudSyncBusy ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+                            ซิงก์ตอนนี้
+                          </button>
+                        ) : (
+                          <button type="button" onClick={() => setCloudSyncPromptOpen(true)} title="เลือกเก็บ Route ใน Cloud" className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+                            <CloudUpload className="size-3.5" aria-hidden="true" />
+                            เปิด Cloud Sync
+                          </button>
+                        )}
+                        <SignOutButton redirectUrl="/">
+                          <button type="button" title="ออกจากระบบ" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 text-xs font-black text-primary">
+                            <LogOut className="size-3.5" aria-hidden="true" />
+                            ออกจากระบบ
+                          </button>
+                        </SignOutButton>
+                      </div>
+                      {cloudSyncMessage ? <p className="mt-2 text-xs font-bold leading-5 text-primary-deep">{cloudSyncMessage}</p> : null}
+                    </>
+                  )}
+                </div>
+              </div>
+            </section>
             <label className="mt-3 block">
               <span className="text-xs font-black text-primary-deep">ตั้งชื่อ route</span>
               <input
@@ -1860,12 +2106,50 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </div>
             <p className="mt-3 flex gap-2 rounded-lg bg-primary-soft p-3 text-xs font-bold leading-5 text-primary-deep">
               <FileJson className="mt-0.5 size-4 shrink-0" />
-              Route ทั้งหมดเก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น ไม่บันทึก API key และไม่ส่งข้อมูลขึ้นเซิร์ฟเวอร์
+              {cloudSyncPreference === "enabled"
+                ? "Route มีสำเนาในเบราว์เซอร์ และซิงก์เข้าบัญชี Cloud นี้แล้ว ไม่บันทึก API key"
+                : "Route ทั้งหมดเก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น จนกว่าจะเลือกเปิด Cloud Sync"}
             </p>
           </section>
           </div>
         </aside>
       </div>
+      {cloudSyncPromptOpen && isSignedIn && user ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-primary-deep/55 p-4" role="dialog" aria-modal="true" aria-labelledby="cloud-sync-title">
+          <section className="w-full max-w-md rounded-lg border border-border bg-white p-5 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-cyan/15 text-cyan-deep">
+                <CloudUpload className="size-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 id="cloud-sync-title" className="text-lg font-black text-primary-deep">เก็บ Route ใน Cloud ไหม?</h2>
+                <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                  ระบบจะรวม Route ที่มีในเครื่องนี้กับ Cloud ของบัญชี {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "คุณ"} เพื่อเปิดต่อบนมือถือหรือคอมพิวเตอร์เครื่องอื่นได้
+                </p>
+                <p className="mt-2 rounded-md bg-primary-soft p-3 text-xs font-bold leading-5 text-primary-deep">
+                  ระบบจะไม่เก็บ Google API key และคุณยังเลือกเก็บไว้เฉพาะเครื่องนี้ได้ตลอดเวลา
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => void enableCloudSync()}
+                disabled={cloudSyncBusy}
+                title="รวม Route ในเครื่องนี้กับ Cloud ของบัญชีคุณ"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-yellow disabled:cursor-wait disabled:opacity-60"
+              >
+                {cloudSyncBusy ? <LoaderCircle className="size-4 animate-spin" /> : <CloudUpload className="size-4" />}
+                เก็บใน Cloud
+              </button>
+              <button type="button" onClick={keepRoutesOnThisDevice} disabled={cloudSyncBusy} title="เก็บ Route ไว้เฉพาะเบราว์เซอร์เครื่องนี้" className="min-h-11 rounded-lg border border-border bg-white px-4 text-sm font-black text-primary disabled:opacity-60">
+                ใช้เฉพาะเครื่องนี้
+              </button>
+            </div>
+            {cloudSyncMessage ? <p className="mt-3 text-center text-xs font-bold leading-5 text-danger">{cloudSyncMessage}</p> : null}
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
