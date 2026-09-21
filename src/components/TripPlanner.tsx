@@ -40,7 +40,7 @@ import { postJson } from "@/lib/client-api";
 import { formatDistance, formatDuration, formatKwh, formatPercent, getDepartureIso } from "@/lib/format";
 import { decodePolyline, splitEncodedPolyline } from "@/lib/polyline";
 import { savedRouteLibrarySchema, savedRouteSchema, savedTripSchema } from "@/lib/schemas";
-import type { BatteryLegEstimate, LatLng, PlannerPlace, RouteResult, SavedRoute, SavedTrip, TourismCategory, TripDayPlan, TripSettings } from "@/types/trip";
+import type { BatteryLegEstimate, LatLng, PlannerPlace, RouteResult, SavedRoute, SavedTrip, TourismCategory, TripSettings } from "@/types/trip";
 import { GoogleMapPanel } from "@/components/GoogleMapPanel";
 import { PlaceSearchInput } from "@/components/PlaceSearchInput";
 import { AdSlot } from "@/components/AdSlot";
@@ -79,6 +79,7 @@ type RecommendationBadge = {
 const storageKey = "tikkie-trip-v1";
 const savedRouteLibraryKey = "tikkie-trip-library-v1";
 const cloudSyncPreferenceKey = "tikkie-trip-cloud-sync-preference-v1";
+const authReturnDraftKey = "tikkie-trip-auth-return-draft-v1";
 const maxSavedRoutes = 25;
 const publicAppUrl = "https://trip-ev-plan.vercel.app/";
 const routeChargerPolylineLimit = 18000;
@@ -86,6 +87,10 @@ const routeChargerMaxSegments = 10;
 const earthRadiusMeters = 6371000;
 
 type CloudSyncPreference = "undecided" | "enabled" | "local";
+type AuthReturnDraft = {
+  snapshot: SavedTrip;
+  routeName: string;
+};
 
 function savedRouteTimestamp(route: SavedRoute) {
   const timestamp = Date.parse(route.savedAt);
@@ -153,22 +158,6 @@ const defaultSettings: TripSettings = {
   minRating: 0,
   includeEvStationPluz: true,
 };
-
-function makeDayPlans(travelDate: string, days: number, existing: TripDayPlan[] = []) {
-  const date = new Date(`${travelDate}T12:00:00`);
-
-  return Array.from({ length: days }, (_, index) => {
-    const value = new Date(date);
-    value.setDate(value.getDate() + index);
-    const previous = existing.find((plan) => plan.day === index + 1);
-
-    return {
-      day: index + 1,
-      date: Number.isNaN(value.getTime()) ? travelDate : value.toISOString().slice(0, 10),
-      note: previous?.note ?? "",
-    };
-  });
-}
 
 function defaultRouteName(origin: PlannerPlace | null, destination: PlannerPlace | null, travelDate: string) {
   if (origin && destination) {
@@ -467,7 +456,6 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [activeSetupPanel, setActiveSetupPanel] = useState<PlannerSetupKey>("trip");
   const [activePanel, setActivePanel] = useState<PlannerMenuKey>("route");
   const [summaryDetail, setSummaryDetail] = useState<SummaryDetailKey>(null);
-  const [dayPlans, setDayPlans] = useState<TripDayPlan[]>(() => makeDayPlans(defaultSettings.travelDate, defaultSettings.days));
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
   const [routeName, setRouteName] = useState(() => defaultRouteName(null, null, defaultSettings.travelDate));
   const [routeLibraryLoaded, setRouteLibraryLoaded] = useState(false);
@@ -480,6 +468,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const resultsScrollRef = useRef<HTMLDivElement | null>(null);
   const savedRoutesRef = useRef<SavedRoute[]>([]);
   const cloudLoadedUserIdRef = useRef<string | null>(null);
+  const authDraftRestoredRef = useRef(false);
 
   const persistSavedRoutes = useCallback((routes: SavedRoute[]) => {
     const parsed = savedRouteLibrarySchema.safeParse(normalizeSavedRoutes(routes));
@@ -572,10 +561,6 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }, [activeSetupPanel]);
 
   useEffect(() => {
-    setDayPlans((current) => makeDayPlans(settings.travelDate, settings.days, current));
-  }, [settings.days, settings.travelDate]);
-
-  useEffect(() => {
     const addMissingButtonTitles = () => {
       document.querySelectorAll<HTMLButtonElement>("button:not([title])").forEach((button) => {
         const label = button.getAttribute("aria-label") || button.textContent?.replace(/\s+/g, " ").trim();
@@ -605,7 +590,6 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       setDestination(parsed.data.destination as PlannerPlace | null);
       setWaypoints(parsed.data.waypoints as PlannerPlace[]);
       setTourismCenter(parsed.data.tourismCenter as PlannerPlace | null);
-      setDayPlans(makeDayPlans(parsed.data.settings.travelDate, parsed.data.settings.days, parsed.data.dayPlans ?? []));
       setRoute((parsed.data.route as RouteResult | null | undefined) ?? null);
       setRouteStops((parsed.data.routeStops as PlannerPlace[] | undefined) ?? []);
       setChargers((parsed.data.chargers as PlannerPlace[] | undefined) ?? []);
@@ -1127,7 +1111,6 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       destination,
       waypoints,
       tourismCenter,
-      dayPlans,
       route,
       routeStops,
       chargers,
@@ -1142,7 +1125,6 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     setDestination(snapshot.destination);
     setWaypoints(snapshot.waypoints);
     setTourismCenter(snapshot.tourismCenter);
-    setDayPlans(makeDayPlans(snapshot.settings.travelDate, snapshot.settings.days, snapshot.dayPlans ?? []));
     setRoute(snapshot.route ?? null);
     setRouteStops(snapshot.routeStops ?? []);
     setChargers(snapshot.chargers ?? []);
@@ -1182,6 +1164,25 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     }
 
     return true;
+  }
+
+  function preserveRouteForAuthReturn() {
+    const snapshot = createTripSnapshot();
+    const parsed = savedTripSchema.safeParse(snapshot);
+    if (!parsed.success) return;
+
+    const draft: AuthReturnDraft = {
+      snapshot: parsed.data as SavedTrip,
+      routeName,
+    };
+
+    try {
+      const serializedDraft = JSON.stringify(draft);
+      window.sessionStorage.setItem(authReturnDraftKey, serializedDraft);
+      window.localStorage.setItem(authReturnDraftKey, serializedDraft);
+    } catch {
+      // The route remains usable in the current page even if a browser blocks storage.
+    }
   }
 
   function openImportPicker() {
@@ -1270,7 +1271,6 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     setDestination(null);
     setWaypoints([]);
     setTourismCenter(null);
-    setDayPlans(makeDayPlans(defaultSettings.travelDate, defaultSettings.days));
     clearComputedData();
     setStatus("ล้างข้อมูลทริปแล้ว");
   }
@@ -1317,6 +1317,47 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     }
   }
 
+  useEffect(() => {
+    if (authDraftRestoredRef.current) return;
+
+    const storageSources = [window.sessionStorage, window.localStorage];
+
+    for (const storage of storageSources) {
+      const rawDraft = storage.getItem(authReturnDraftKey);
+      if (!rawDraft) continue;
+
+      try {
+        const draft = JSON.parse(rawDraft) as Partial<AuthReturnDraft>;
+        const parsed = savedTripSchema.safeParse(draft.snapshot);
+        if (!parsed.success) continue;
+
+        authDraftRestoredRef.current = true;
+        setSettings(parsed.data.settings as TripSettings);
+        setOrigin(parsed.data.origin as PlannerPlace | null);
+        setDestination(parsed.data.destination as PlannerPlace | null);
+        setWaypoints(parsed.data.waypoints as PlannerPlace[]);
+        setTourismCenter(parsed.data.tourismCenter as PlannerPlace | null);
+        setRoute((parsed.data.route as RouteResult | null | undefined) ?? null);
+        setRouteStops((parsed.data.routeStops as PlannerPlace[] | undefined) ?? []);
+        setChargers((parsed.data.chargers as PlannerPlace[] | undefined) ?? []);
+        setChargerSearchPolyline(parsed.data.chargerSearchPolyline ?? "");
+        setChargerNotice(parsed.data.chargerNotice ?? "");
+        setRouteName(typeof draft.routeName === "string" && draft.routeName.trim() ? draft.routeName : defaultRouteName(parsed.data.origin, parsed.data.destination, parsed.data.settings.travelDate));
+        setStatus("กลับมาที่ Route เดิมหลังเข้าสู่ระบบแล้ว");
+      } catch {
+        // Try the local-storage backup when the session copy is invalid.
+      } finally {
+        storage.removeItem(authReturnDraftKey);
+      }
+
+      if (authDraftRestoredRef.current) {
+        window.sessionStorage.removeItem(authReturnDraftKey);
+        window.localStorage.removeItem(authReturnDraftKey);
+        return;
+      }
+    }
+  }, []);
+
   return (
     <main className="min-h-dvh bg-background">
       <header className="border-b border-white/35 bg-[linear-gradient(135deg,#070044_0%,#1700c7_72%,#006dff_100%)] text-yellow shadow-sm">
@@ -1355,7 +1396,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 <span className="inline-flex min-h-10 items-center rounded-lg border border-white/25 px-3 text-xs font-black text-yellow-soft">กำลังตรวจบัญชี</span>
               ) : !isSignedIn ? (
                 <SignInButton mode="modal">
-                  <button type="button" title="เข้าสู่ระบบเพื่อบันทึกและซิงก์ Route" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/40 bg-white/10 px-3 text-xs font-black text-yellow hover:bg-white/20">
+                  <button type="button" onClick={preserveRouteForAuthReturn} title="เข้าสู่ระบบเพื่อบันทึกและซิงก์ Route" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/40 bg-white/10 px-3 text-xs font-black text-yellow hover:bg-white/20">
                     <LogIn className="size-4" aria-hidden="true" />
                     เข้าสู่ระบบ
                   </button>
@@ -1504,34 +1545,6 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 </label>
                 <NumberField label="จำนวนวัน" value={settings.days} min={1} max={7} unit="วัน" onChange={(value) => updateSetting("days", value)} />
               </div>
-              {settings.days > 1 ? (
-                <section className="rounded-lg border border-cyan/30 bg-blue-50 p-3" aria-label="แผนรายวันต่อเนื่อง">
-                  <div className="flex items-center gap-2">
-                    <CalendarClock className="size-4 text-cyan-deep" aria-hidden="true" />
-                    <div>
-                      <h3 className="text-sm font-black text-primary-deep">แผนรายวันต่อเนื่อง</h3>
-                      <p className="text-xs font-semibold leading-5 text-muted">ระบบเรียงวันถัดไปให้อัตโนมัติตามจำนวนวันที่เลือก</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {dayPlans.map((plan) => (
-                      <label key={plan.day} className="grid grid-cols-[auto_1fr] items-center gap-2 rounded-md border border-border bg-white p-2">
-                        <span className="rounded-md bg-primary px-2 py-1 text-xs font-black text-yellow">วันที่ {plan.day}</span>
-                        <span className="min-w-0">
-                          <span className="block text-xs font-black text-primary-deep">{new Date(`${plan.date}T12:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
-                          <input
-                            value={plan.note}
-                            onChange={(event) => setDayPlans((current) => current.map((item) => (item.day === plan.day ? { ...item, note: event.target.value } : item)))}
-                            placeholder="บันทึกแผนของวันนี้ (ไม่บังคับ)"
-                            title={`บันทึกแผนวันที่ ${plan.day}`}
-                            className="mt-1 w-full border-b border-border bg-transparent pb-1 text-xs font-semibold text-primary-deep outline-none focus:border-primary"
-                          />
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
             </div>
           </section>
 
@@ -2070,7 +2083,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     <>
                       <p className="mt-1 text-xs font-bold leading-5 text-muted">คำนวณ Route ได้ทันที แต่ต้องเข้าสู่ระบบก่อนจึงจะบันทึก เปิด ลบ นำเข้า หรือส่งออก Route ได้</p>
                       <SignInButton mode="modal">
-                        <button type="button" title="เข้าสู่ระบบเพื่อบันทึก Route" className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+                        <button type="button" onClick={preserveRouteForAuthReturn} title="เข้าสู่ระบบเพื่อบันทึก Route" className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
                           <LogIn className="size-3.5" aria-hidden="true" />
                           เข้าสู่ระบบ
                         </button>

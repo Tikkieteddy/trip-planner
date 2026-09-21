@@ -129,16 +129,6 @@ export const savedTripSchema = z.object({
   destination: plannerPlaceSchema.nullable(),
   waypoints: z.array(plannerPlaceSchema).max(10),
   tourismCenter: plannerPlaceSchema.nullable(),
-  dayPlans: z
-    .array(
-      z.object({
-        day: z.number().int().min(1).max(7),
-        date: z.string().min(8).max(20),
-        note: z.string().max(240),
-      }),
-    )
-    .max(7)
-    .optional(),
   route: z
     .object({
       distanceMeters: z.number().min(0),

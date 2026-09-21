@@ -122,12 +122,6 @@ export type TourismCategory = {
   includedTypes: string[];
 };
 
-export type TripDayPlan = {
-  day: number;
-  date: string;
-  note: string;
-};
-
 export type SavedTrip = {
   version: 1 | 2;
   savedAt: string;
@@ -136,7 +130,6 @@ export type SavedTrip = {
   destination: PlannerPlace | null;
   waypoints: PlannerPlace[];
   tourismCenter: PlannerPlace | null;
-  dayPlans?: TripDayPlan[];
   route?: RouteResult | null;
   routeStops?: PlannerPlace[];
   chargers?: PlannerPlace[];
