@@ -6,11 +6,11 @@ export const metadata: Metadata = {
   title: "Tikkie Trip – EV Travel Planner",
   description: "วางแผนเที่ยวด้วยรถ EV ค้นหาสถานีชาร์จและสถานที่แวะตามเส้นทาง",
   applicationName: "Tikkie Trip – EV Travel Planner",
-  metadataBase: new URL("https://tikkiecenter-trip.vercel.app"),
+  metadataBase: new URL("https://trip-ev-plan.vercel.app"),
   openGraph: {
     title: "Tikkie Trip – EV Travel Planner",
     description: "วางแผนเที่ยวด้วยรถ EV ค้นหาสถานีชาร์จและสถานที่แวะตามเส้นทาง",
-    url: "https://tikkiecenter-trip.vercel.app",
+    url: "https://trip-ev-plan.vercel.app",
     siteName: "Tikkie Trip",
     locale: "th_TH",
     type: "website",

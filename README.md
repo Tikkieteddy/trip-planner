@@ -10,8 +10,8 @@ Tikkie Trip เป็นเว็บแอปสำหรับวางแผ�
 - ค้นหาสถานีชาร์จ `electric_vehicle_charging_station` ตามแนว encoded polyline ของเส้นทาง พร้อมค้นหา EV Station PluZ เพิ่มเติมเมื่อเปิดตัวเลือกนี้
 - ค้นหาร้านอาหาร คาเฟ่ ห้องน้ำ ห้าง โรงแรม และสถานที่ท่องเที่ยวใกล้จุดชาร์จหรือศูนย์กลางที่เลือก
 - ประเมินแบตเตอรี่ในแต่ละ leg จากค่ารถที่ผู้ใช้แก้ไขได้
-- ตั้งชื่อ บันทึก เปิด และลบ route ได้สูงสุด 25 รายการใน `localStorage` ของเบราว์เซอร์ รวมเส้นทางที่คำนวณแล้ว สถานีชาร์จ และแผนรายวัน พร้อมนำเข้า/ส่งออก JSON โดยไม่บันทึก API key
-- สร้างวันที่ต่อเนื่องและบันทึกแผนรายวันได้สูงสุด 7 วัน
+- ตั้งชื่อ บันทึก เปิด และลบ route ได้สูงสุด 25 รายการ โดยต้องเข้าสู่ระบบก่อนจัดการ route; เลือกเก็บไว้ในเบราว์เซอร์เครื่องนี้หรือเปิด Cloud Sync เพื่อใช้ route กับบัญชีเดียวกันบนอุปกรณ์อื่น
+- นำเข้า/ส่งออกข้อมูลทริปเป็น JSON ได้หลังเข้าสู่ระบบ โดยไม่บันทึก API key; จำนวนวันเป็นข้อมูลกำกับทริปและไม่มีระบบแผนรายวันแยก
 - กดข้อมูลสรุปด้านบนเพื่อดูคำอธิบาย และพับ/เปิดกล่องค้นหาบนแผนที่ได้
 - แสดงคู่มือ 8 ขั้นเมื่อเข้าใช้งานครั้งแรก และเปิดดูซ้ำได้จากปุ่ม `วิธีใช้`
 
@@ -52,7 +52,7 @@ GOOGLE_MAPS_SERVER_KEY=
 3. ไปที่ APIs & Services > Credentials
 4. Create credentials > API key
 5. จำกัดสิทธิ์ key ให้ใช้เฉพาะ Maps JavaScript API
-6. จำกัด HTTP referrer เช่น `https://trip-planner.vercel.app/*` และ localhost ที่ใช้พัฒนา
+6. จำกัด HTTP referrer เช่น `https://trip-ev-plan.vercel.app/*` และ localhost ที่ใช้พัฒนา
 7. นำค่าไปใส่ `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`
 
 ## วิธีสร้าง Server API Key
@@ -117,7 +117,7 @@ trip-planner
 Production domain ที่ต้องตรวจสอบหลัง deploy:
 
 ```text
-https://trip-planner.vercel.app
+https://trip-ev-plan.vercel.app
 ```
 
 ## วิธีเพิ่ม Environment Variables

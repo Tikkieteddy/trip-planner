@@ -51,10 +51,13 @@ export function AdSlot() {
     return () => container.replaceChildren();
   }, [config, screenSize]);
 
+  if (!config?.enabled) return null;
+
   return (
-    <aside aria-label="โฆษณา" className={`relative mx-auto flex h-[100px] w-[min(320px,100%)] shrink-0 items-center justify-center overflow-hidden bg-white sm:h-[90px] sm:w-[min(728px,100%)] ${config?.enabled ? "" : "border border-dashed border-border"}`}>
-      <div ref={containerRef} className="flex size-full items-center justify-center" />
-      {!config?.enabled ? <span className="absolute text-[10px] font-bold text-muted/60">พื้นที่โฆษณา</span> : null}
-    </aside>
+    <div className="flex justify-center px-3 py-2 sm:px-4">
+      <aside aria-label="โฆษณา" className="relative mx-auto flex h-[100px] w-[min(320px,100%)] shrink-0 items-center justify-center overflow-hidden bg-white sm:h-[90px] sm:w-[min(728px,100%)]">
+        <div ref={containerRef} className="flex size-full items-center justify-center" />
+      </aside>
+    </div>
   );
 }

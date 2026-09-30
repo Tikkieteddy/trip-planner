@@ -1448,9 +1448,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         </div>
       </header>
 
-      <div className="flex justify-center px-3 py-2 sm:px-4">
-        <AdSlot />
-      </div>
+      <AdSlot />
 
       <div className="mx-auto grid max-w-[1800px] gap-3 px-3 pb-3 sm:px-4 lg:h-[calc(100dvh-180px)] lg:grid-cols-[360px_minmax(0,1fr)_390px] lg:overflow-hidden lg:px-6">
         <aside className="grid h-[80dvh] min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden lg:h-full">
