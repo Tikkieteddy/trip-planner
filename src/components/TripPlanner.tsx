@@ -32,6 +32,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import Image from "next/image";
 import { SignInButton, SignOutButton, useUser } from "@clerk/nextjs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { connectorLabel, connectorOptions, nearbyActivityTypes, tourismCategories } from "@/data/place-types";
@@ -61,7 +62,7 @@ type PlacesResponse = {
 
 type PlannerSetupKey = "trip" | "vehicle" | "filters";
 type PlannerMenuKey = "route" | "itinerary" | "chargers" | "nearby" | "vehicle";
-type ChargerSortKey = "route" | "speed" | "rating" | "origin-near" | "origin-far";
+type ChargerSortKey = "route" | "speed" | "rating" | "reference-near" | "reference-far";
 type SummaryDetailKey = "distance" | "duration" | "battery" | null;
 
 const chargerApps = [
@@ -216,11 +217,11 @@ function buildDirectionsUrl(origin: PlannerPlace | null, destination: PlannerPla
 
 function getRiskClass(risk: BatteryLegEstimate["risk"]) {
   if (risk === "ปลอดภัย") {
-    return "border-success/25 bg-green-50 text-success";
+    return "border-success/25 bg-primary-soft/40 text-success";
   }
 
   if (risk === "ควรวางแผนชาร์จ") {
-    return "border-warning/25 bg-yellow-50 text-warning";
+    return "border-warning/25 bg-secondary-container/60 text-warning";
   }
 
   return "border-danger/25 bg-red-50 text-danger";
@@ -283,7 +284,7 @@ function NumberField({
   return (
     <label className="block">
       <span className="text-xs font-black text-primary-deep">{label}</span>
-      <span className="mt-1 flex items-center overflow-hidden rounded-lg border border-border bg-white shadow-sm focus-within:border-cyan focus-within:ring-2 focus-within:ring-cyan/20">
+      <span className="mt-1 flex items-center overflow-hidden rounded-lg border border-border bg-surface-container-low shadow-sm transition-colors focus-within:border-cyan focus-within:bg-white focus-within:ring-2 focus-within:ring-cyan/20">
         <input
           type="number"
           min={min}
@@ -309,7 +310,7 @@ function ToggleRow({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-10 items-center justify-between gap-3 rounded-lg border border-border bg-white px-3 text-sm font-bold text-primary-deep">
+    <label className="flex min-h-10 items-center justify-between gap-3 rounded-lg border border-border bg-surface-container-low px-3 text-sm font-bold text-primary-deep">
       <span>{label}</span>
       <input
         type="checkbox"
@@ -404,7 +405,7 @@ function PlaceListCard({
           onClick={onAction}
           disabled={added}
           title={added ? "สถานที่นี้อยู่ในแผนการเดินทางแล้ว" : actionLabel}
-          className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow shadow-sm hover:bg-primary-deep disabled:cursor-default disabled:opacity-60"
+          className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-white shadow-sm hover:bg-primary-deep disabled:cursor-default disabled:opacity-60"
         >
           <Plus className="size-3.5" aria-hidden="true" />
           {added ? "เพิ่มแล้ว" : actionLabel}
@@ -446,6 +447,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [chargerSearchPolyline, setChargerSearchPolyline] = useState("");
   const [chargerNotice, setChargerNotice] = useState("");
   const [chargerSort, setChargerSort] = useState<ChargerSortKey>("route");
+  const [chargerReferenceId, setChargerReferenceId] = useState("origin");
   const [nearbyPlaces, setNearbyPlaces] = useState<PlannerPlace[]>([]);
   const [tourismCenter, setTourismCenter] = useState<PlannerPlace | null>(null);
   const [tourismCategory, setTourismCategory] = useState<TourismCategory>(tourismCategories[0]);
@@ -463,6 +465,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [cloudSyncPromptOpen, setCloudSyncPromptOpen] = useState(false);
   const [cloudSyncBusy, setCloudSyncBusy] = useState(false);
   const [cloudSyncMessage, setCloudSyncMessage] = useState("");
+  const [tutorialMapSearchOpen, setTutorialMapSearchOpen] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setupScrollRef = useRef<HTMLDivElement | null>(null);
   const resultsScrollRef = useRef<HTMLDivElement | null>(null);
@@ -542,14 +545,26 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   );
 
   const enterTutorialStep = useCallback((id: string) => {
-    if (id === "origin" || id === "destination") setActiveSetupPanel("trip");
-    if (id === "results-menu") setActivePanel("route");
-    if (id === "save-actions") setActivePanel("vehicle");
+    setSummaryDetail(null);
+    setTutorialMapSearchOpen(id === "map-search" ? true : null);
+
+    if (["trip-settings", "origin", "destination", "trip-schedule"].includes(id)) setActiveSetupPanel("trip");
+    if (["setup-vehicle-tab", "vehicle-profile"].includes(id)) setActiveSetupPanel("vehicle");
+    if (["setup-filters-tab", "filter-settings"].includes(id)) setActiveSetupPanel("filters");
+
+    if (["results-menu", "route-panel"].includes(id)) setActivePanel("route");
+    if (id === "itinerary-panel") setActivePanel("itinerary");
+    if (id === "chargers-panel") setActivePanel("chargers");
+    if (id === "nearby-panel") setActivePanel("nearby");
+    if (["battery-panel", "route-name", "save-actions", "share-route", "saved-routes", "route-files", "cloud-sync"].includes(id)) {
+      setActivePanel("vehicle");
+    }
   }, []);
 
   const closeTutorial = useCallback(() => {
     setActiveSetupPanel("trip");
     setActivePanel("route");
+    setTutorialMapSearchOpen(null);
   }, []);
 
   useEffect(() => {
@@ -729,20 +744,42 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   ];
   const activePanelItem = panelMenuItems.find((item) => item.key === activePanel) ?? panelMenuItems[0];
   const ActivePanelIcon = activePanelItem.icon;
+  const mobileNavigationItems = [
+    { key: "plan", label: "วางแผน", icon: Navigation },
+    { key: "route", label: "เส้นทาง", icon: CalendarClock },
+    { key: "chargers", label: "จุดชาร์จ", icon: Zap },
+    { key: "vehicle", label: "รถ/บัญชี", icon: Car },
+  ] as const;
   const chargerSortItems = [
-    { key: "origin-near" as const, label: "ใกล้ต้นทางสุด", icon: ArrowUp },
-    { key: "origin-far" as const, label: "ไกลต้นทางสุด", icon: ArrowDown },
+    { key: "reference-near" as const, label: "ใกล้พื้นที่ที่เลือก", icon: ArrowUp },
+    { key: "reference-far" as const, label: "ไกลพื้นที่ที่เลือก", icon: ArrowDown },
     { key: "route" as const, label: "ใกล้เส้นทาง", icon: MapPinned },
     { key: "speed" as const, label: "ชาร์จเร็ว", icon: Zap },
     { key: "rating" as const, label: "คะแนนสูง", icon: Star },
   ];
+  const chargerReferenceOptions = useMemo(
+    () => [
+      ...(origin ? [{ value: "origin", label: `ต้นทาง: ${origin.name}`, shortLabel: "ต้นทาง", place: origin }] : []),
+      ...waypoints.map((place, index) => ({
+        value: `waypoint:${place.id}`,
+        label: `จุดแวะ ${index + 1}: ${place.name}`,
+        shortLabel: `จุดแวะ ${index + 1}`,
+        place,
+      })),
+      ...(destination ? [{ value: "destination", label: `ปลายทาง: ${destination.name}`, shortLabel: "ปลายทาง", place: destination }] : []),
+    ],
+    [destination, origin, waypoints],
+  );
+  const selectedChargerReference =
+    chargerReferenceOptions.find((option) => option.value === chargerReferenceId) ?? chargerReferenceOptions[0] ?? null;
   const routeSamplePoints = useMemo(() => (chargerSearchPolyline ? sampleRoutePoints(decodePolyline(chargerSearchPolyline)) : []), [chargerSearchPolyline]);
   const sortedChargers = useMemo(() => {
     return [...chargers].sort((first, second) => {
-      if (chargerSort === "origin-near" || chargerSort === "origin-far") {
-        if (!origin) return 0;
-        const difference = getDistanceMeters(origin.location, first.location) - getDistanceMeters(origin.location, second.location);
-        return difference * (chargerSort === "origin-far" ? -1 : 1) || first.name.localeCompare(second.name, "th");
+      if (chargerSort === "reference-near" || chargerSort === "reference-far") {
+        if (!selectedChargerReference) return 0;
+        const referenceLocation = selectedChargerReference.place.location;
+        const difference = getDistanceMeters(referenceLocation, first.location) - getDistanceMeters(referenceLocation, second.location);
+        return difference * (chargerSort === "reference-far" ? -1 : 1) || first.name.localeCompare(second.name, "th");
       }
       if (chargerSort === "speed") {
         return getMaxChargeRateKw(second) - getMaxChargeRateKw(first) || (second.rating ?? 0) - (first.rating ?? 0);
@@ -762,11 +799,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         (second.rating ?? 0) - (first.rating ?? 0)
       );
     });
-  }, [chargerSort, chargers, routeSamplePoints, origin]);
+  }, [chargerSort, chargers, routeSamplePoints, selectedChargerReference]);
 
   function getChargerMetric(place: PlannerPlace) {
-    if (chargerSort === "origin-near" || chargerSort === "origin-far") {
-      return { label: "จากต้นทาง (ทางตรงโดยประมาณ)", value: origin ? formatDistance(getDistanceMeters(origin.location, place.location)) : "ยังไม่ได้เลือกต้นทาง" };
+    if (chargerSort === "reference-near" || chargerSort === "reference-far") {
+      return {
+        label: `จาก${selectedChargerReference?.shortLabel ?? "พื้นที่อ้างอิง"} (ทางตรงโดยประมาณ)`,
+        value: selectedChargerReference ? formatDistance(getDistanceMeters(selectedChargerReference.place.location, place.location)) : "เลือกพื้นที่อ้างอิง",
+      };
     }
     if (chargerSort === "speed") {
       const maxChargeRate = getMaxChargeRateKw(place);
@@ -1359,32 +1399,32 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }, []);
 
   return (
-    <main className="min-h-dvh bg-background">
-      <header className="border-b border-white/35 bg-[linear-gradient(135deg,#070044_0%,#1700c7_72%,#006dff_100%)] text-yellow shadow-sm">
+    <main className="min-h-dvh overflow-x-hidden bg-background">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/90 text-primary-deep shadow-sm backdrop-blur-xl">
         <div className="relative mx-auto flex max-w-[1800px] flex-col gap-2 px-3 py-2.5 sm:px-4 lg:px-6">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex min-w-[220px] flex-1 items-center gap-2">
-              <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-yellow text-primary shadow-lg">
+            <div className="flex min-w-[170px] flex-1 items-center gap-2 sm:min-w-[220px]">
+              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-white shadow-sm">
                 <MapPinned className="size-6" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase leading-none text-yellow-soft">Tikkie Travel</p>
+                <p className="text-[10px] font-black uppercase leading-none text-secondary">Tikkie Travel</p>
                 <h1 className="truncate text-lg font-black leading-tight tracking-normal sm:text-xl">Tikkie Trip – EV Planner</h1>
               </div>
             </div>
 
-            <div className="trip-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto lg:flex-none lg:justify-center">
-              <button type="button" onClick={() => setSummaryDetail((current) => (current === "distance" ? null : "distance"))} aria-expanded={summaryDetail === "distance"} title="อธิบายระยะทางรวม" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-yellow-soft">
+            <div data-tour="header-summary" className="trip-scrollbar hidden min-w-0 flex-1 gap-2 overflow-x-auto xl:flex xl:flex-none xl:justify-center">
+              <button type="button" onClick={() => setSummaryDetail((current) => (current === "distance" ? null : "distance"))} aria-expanded={summaryDetail === "distance"} title="อธิบายระยะทางรวม" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-container px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-secondary-container">
                 <Navigation className="size-4 text-cyan-deep" aria-hidden="true" />
                 ระยะทาง
                 <strong className="text-sm">{route ? formatDistance(route.distanceMeters) : "รอคำนวณ"}</strong>
               </button>
-              <button type="button" onClick={() => setSummaryDetail((current) => (current === "duration" ? null : "duration"))} aria-expanded={summaryDetail === "duration"} title="อธิบายเวลาเดินทาง" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-yellow-soft">
+              <button type="button" onClick={() => setSummaryDetail((current) => (current === "duration" ? null : "duration"))} aria-expanded={summaryDetail === "duration"} title="อธิบายเวลาเดินทาง" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-container px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-secondary-container">
                 <CalendarClock className="size-4 text-cyan-deep" aria-hidden="true" />
                 เวลา
                 <strong className="text-sm">{route ? formatDuration(route.duration) : "รอคำนวณ"}</strong>
               </button>
-              <button type="button" onClick={() => setSummaryDetail((current) => (current === "battery" ? null : "battery"))} aria-expanded={summaryDetail === "battery"} title="อธิบายการประเมินแบตเตอรี่" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-white/20 bg-white/95 px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-yellow-soft">
+              <button type="button" onClick={() => setSummaryDetail((current) => (current === "battery" ? null : "battery"))} aria-expanded={summaryDetail === "battery"} title="อธิบายการประเมินแบตเตอรี่" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-container px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-secondary-container">
                 <BatteryCharging className="size-4 text-cyan-deep" aria-hidden="true" />
                 แบต
                 <strong className="max-w-40 truncate text-sm">{estimates.length ? batterySummaryText(estimates) : "ยังไม่ประเมิน"}</strong>
@@ -1393,27 +1433,28 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
             <div className="flex shrink-0 items-center gap-2">
               {!isAuthLoaded ? (
-                <span className="inline-flex min-h-10 items-center rounded-lg border border-white/25 px-3 text-xs font-black text-yellow-soft">กำลังตรวจบัญชี</span>
+                <span className="inline-flex min-h-10 items-center rounded-xl border border-border bg-surface-container-low px-3 text-xs font-black text-muted">กำลังตรวจบัญชี</span>
               ) : !isSignedIn ? (
                 <SignInButton mode="modal">
-                  <button type="button" onClick={preserveRouteForAuthReturn} title="เข้าสู่ระบบเพื่อบันทึกและซิงก์ Route" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/40 bg-white/10 px-3 text-xs font-black text-yellow hover:bg-white/20">
+                  <button data-tour="account" type="button" onClick={preserveRouteForAuthReturn} title="เข้าสู่ระบบเพื่อบันทึกและซิงก์ Route" aria-label="เข้าสู่ระบบ" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-surface-container-low px-2 text-xs font-black text-primary-deep hover:bg-secondary-container sm:px-3">
                     <LogIn className="size-4" aria-hidden="true" />
-                    เข้าสู่ระบบ
+                    <span className="hidden sm:inline">เข้าสู่ระบบ</span>
                   </button>
                 </SignInButton>
               ) : (
                 <>
                   <button
+                    data-tour="account"
                     type="button"
                     onClick={() => setActivePanel("vehicle")}
                     title="เปิด Route ที่บันทึกและการตั้งค่า Cloud Sync"
-                    className="inline-flex min-h-10 max-w-44 items-center gap-2 rounded-lg border border-white/40 bg-white/10 px-3 text-xs font-black text-yellow hover:bg-white/20"
+                    className="inline-flex min-h-10 max-w-44 items-center gap-2 rounded-xl border border-border bg-surface-container-low px-3 text-xs font-black text-primary-deep hover:bg-secondary-container"
                   >
                     <Cloud className="size-4 shrink-0" aria-hidden="true" />
                     <span className="truncate">{user?.firstName ?? user?.primaryEmailAddress?.emailAddress ?? "บัญชีของฉัน"}</span>
                   </button>
                   <SignOutButton redirectUrl="/">
-                    <button type="button" title="ออกจากระบบ" aria-label="ออกจากระบบ" className="grid size-10 place-items-center rounded-lg border border-white/40 bg-white/10 text-yellow hover:bg-white/20">
+                    <button type="button" title="ออกจากระบบ" aria-label="ออกจากระบบ" className="grid size-10 place-items-center rounded-xl border border-border bg-surface-container-low text-primary-deep hover:bg-secondary-container">
                       <LogOut className="size-4" aria-hidden="true" />
                     </button>
                   </SignOutButton>
@@ -1426,15 +1467,16 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 onClick={() => void calculateRoute()}
                 disabled={routeActionDisabled}
                 title="คำนวณเส้นทางการเดินทางและค้นหาสถานีชาร์จ"
-                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-yellow px-4 text-sm font-black text-primary shadow-lg hover:bg-yellow-soft disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label="คำนวณเส้นทาง"
+                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-2 text-sm font-black text-white shadow-sm hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
               >
                 {routeLoading ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Navigation className="size-4" aria-hidden="true" />}
-                คำนวณเส้นทาง
+                <span className="hidden sm:inline">คำนวณเส้นทาง</span>
               </button>
             </div>
           </div>
           {summaryExplanation ? (
-            <section role="status" className="absolute left-3 right-3 top-full z-30 mt-1 rounded-lg border border-yellow/60 bg-white p-3 text-primary-deep shadow-xl sm:left-auto sm:right-4 sm:w-[380px]">
+            <section role="status" className="absolute left-3 right-3 top-full z-30 mt-1 rounded-xl border border-border bg-white p-3 text-primary-deep shadow-xl sm:left-auto sm:right-4 sm:w-[380px]">
               <div className="flex items-start gap-3">
                 <CircleHelp className="mt-0.5 size-5 shrink-0 text-cyan-deep" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
@@ -1448,23 +1490,78 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         </div>
       </header>
 
+      <section className="relative mx-auto mt-3 w-full max-w-[1800px] px-3 sm:px-4 lg:px-6" aria-labelledby="hero-title">
+        <div className="relative isolate overflow-hidden rounded-2xl bg-primary shadow-lg">
+          <Image src="/road-hero.png" alt="ถนนคดเคี้ยวผ่านหุบเขาเขียวในแสงเช้า" fill priority sizes="100vw" className="object-cover object-center" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(3,55,45,0.95)_0%,rgba(3,55,45,0.65)_50%,rgba(3,55,45,0.40)_100%)]" />
+          <div className="relative flex min-h-[300px] flex-col justify-between gap-5 p-5 text-white sm:min-h-[330px] sm:p-7 lg:min-h-[360px] lg:p-9">
+            <div className="max-w-3xl">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-secondary-container backdrop-blur">
+                <Zap className="size-3.5" aria-hidden="true" />
+                วางแผนเส้นทางรถยนต์ไฟฟ้า
+              </span>
+              <h2 id="hero-title" className="mt-3 text-2xl font-black leading-tight sm:text-[30px]">Tikkie Trip – EV Planner</h2>
+              <p className="mt-1 max-w-xl text-sm font-semibold leading-6 text-white/85">
+                วางแผนการเดินทาง ค้นหาสถานีชาร์จ และประเมินแบตเตอรี่จากข้อมูลรถของคุณ
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSetupPanel("trip");
+                  document.getElementById("planner-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                title="ไปยังแบบฟอร์มตั้งค่าทริป"
+                className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-secondary-container px-4 text-sm font-black text-primary hover:bg-white"
+              >
+                <Navigation className="size-4" aria-hidden="true" />
+                เริ่มวางแผนทริป
+              </button>
+            </div>
+            <div data-tour="hero-summary" className="grid grid-cols-3 gap-2 rounded-xl border border-white/60 bg-white/90 p-2 text-primary-deep shadow-sm backdrop-blur sm:max-w-3xl sm:gap-3 sm:p-3">
+              <div className="flex min-w-0 items-center gap-2 px-1 sm:px-2">
+                <Navigation className="size-4 shrink-0 text-secondary" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-muted sm:text-xs">ระยะทาง</p>
+                  <p className="truncate text-xs font-black sm:text-sm">{route ? formatDistance(route.distanceMeters) : "รอคำนวณ"}</p>
+                </div>
+              </div>
+              <div className="flex min-w-0 items-center gap-2 border-x border-border px-2 sm:px-3">
+                <CalendarClock className="size-4 shrink-0 text-secondary" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-muted sm:text-xs">เวลาเดินทาง</p>
+                  <p className="truncate text-xs font-black sm:text-sm">{route ? formatDuration(route.duration) : "รอคำนวณ"}</p>
+                </div>
+              </div>
+              <div className="flex min-w-0 items-center gap-2 px-1 sm:px-2">
+                <BatteryCharging className="size-4 shrink-0 text-secondary" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-muted sm:text-xs">แบตเตอรี่</p>
+                  <p className="truncate text-xs font-black sm:text-sm">{estimates.length ? batterySummaryText(estimates) : "รอประเมิน"}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <AdSlot />
 
-      <div className="mx-auto grid max-w-[1800px] gap-3 px-3 pb-3 sm:px-4 lg:h-[calc(100dvh-180px)] lg:grid-cols-[360px_minmax(0,1fr)_390px] lg:overflow-hidden lg:px-6">
-        <aside className="grid h-[80dvh] min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden lg:h-full">
-          <nav data-tour="setup-menu" className="grid grid-cols-3 gap-1.5 rounded-lg border border-border bg-white p-1.5 shadow-sm" aria-label="เมนูตั้งค่าทริป">
+      <div id="planner-workspace" className="mx-auto grid max-w-[1800px] gap-4 px-3 py-4 pb-28 sm:px-4 lg:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.22fr)] lg:items-start lg:px-6 lg:pb-8 xl:grid-cols-[minmax(270px,0.8fr)_minmax(0,1.65fr)_minmax(300px,0.9fr)]">
+        <aside className="grid h-auto min-h-0 min-w-0 grid-rows-[auto_auto] gap-3 overflow-visible lg:col-start-1 lg:row-start-1">
+          <nav data-tour="setup-menu" className="grid grid-cols-3 gap-1.5 rounded-2xl border border-border bg-surface-container-low p-1.5 shadow-sm" aria-label="เมนูตั้งค่าทริป">
             {setupMenuItems.map((item) => {
               const Icon = item.icon;
               const selected = activeSetupPanel === item.key;
 
               return (
                 <button
+                  data-tour={`setup-${item.key}-tab`}
                   key={item.key}
                   type="button"
                   onClick={() => setActiveSetupPanel(item.key)}
                   title={`เปิดเมนู${item.label}`}
-                  className={`inline-flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[7px] font-black text-primary-deep transition ${
-                    selected ? "border-primary bg-yellow shadow-sm" : "border-yellow/60 bg-yellow/70 hover:bg-yellow"
+                  className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 text-[11px] font-black text-primary-deep transition sm:text-xs ${
+                    selected ? "border-white bg-white shadow-sm" : "border-transparent bg-transparent hover:bg-secondary-container"
                   }`}
                 >
                   <Icon className="size-3 shrink-0" aria-hidden="true" />
@@ -1474,8 +1571,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             })}
           </nav>
 
-          <div ref={setupScrollRef} tabIndex={0} role="region" aria-label="รายละเอียดการตั้งค่าทริป" className="trip-scrollbar min-h-0 space-y-3 overflow-y-auto overscroll-contain pr-1 pb-1">
-          <section className={`${activeSetupPanel === "trip" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
+          <div ref={setupScrollRef} tabIndex={0} role="region" aria-label="รายละเอียดการตั้งค่าทริป" className="min-h-0 space-y-3 overflow-visible">
+          <section data-tour="trip-settings" className={`${activeSetupPanel === "trip" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center gap-2">
               <Car className="size-5 text-cyan-deep" aria-hidden="true" />
               <h2 className="text-lg font-black text-primary-deep">ตั้งค่าทริป</h2>
@@ -1508,45 +1605,47 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 }}
               /></div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs font-black text-primary-deep">วันที่เดินทาง</span>
-                  <input
-                    type="date"
-                    value={settings.travelDate}
-                    onChange={(event) => updateSetting("travelDate", event.target.value)}
-                    className="mt-1 w-full rounded-lg border border-border bg-white px-3 text-sm font-bold text-foreground"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-black text-primary-deep">เวลาออก</span>
-                  <input
-                    type="time"
-                    value={settings.departureTime}
-                    onChange={(event) => updateSetting("departureTime", event.target.value)}
-                    className="mt-1 w-full rounded-lg border border-border bg-white px-3 text-sm font-bold text-foreground"
-                  />
-                </label>
-              </div>
+              <div data-tour="trip-schedule" className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="text-xs font-black text-primary-deep">วันที่เดินทาง</span>
+                    <input
+                      type="date"
+                      value={settings.travelDate}
+                      onChange={(event) => updateSetting("travelDate", event.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border bg-surface-container-low px-3 text-sm font-bold text-foreground transition-colors focus:bg-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-black text-primary-deep">เวลาออก</span>
+                    <input
+                      type="time"
+                      value={settings.departureTime}
+                      onChange={(event) => updateSetting("departureTime", event.target.value)}
+                      className="mt-1 w-full rounded-lg border border-border bg-surface-container-low px-3 text-sm font-bold text-foreground transition-colors focus:bg-white"
+                    />
+                  </label>
+                </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs font-black text-primary-deep">รูปแบบทริป</span>
-                  <select
-                    value={settings.tripType}
-                    onChange={(event) => updateSetting("tripType", event.target.value as TripSettings["tripType"])}
-                    className="mt-1 w-full rounded-lg border border-border bg-white px-3 text-sm font-bold"
-                  >
-                    <option value="one-way">เที่ยวเดียว</option>
-                    <option value="round-trip">ไป-กลับ</option>
-                  </select>
-                </label>
-                <NumberField label="จำนวนวัน" value={settings.days} min={1} max={7} unit="วัน" onChange={(value) => updateSetting("days", value)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="text-xs font-black text-primary-deep">รูปแบบทริป</span>
+                    <select
+                      value={settings.tripType}
+                      onChange={(event) => updateSetting("tripType", event.target.value as TripSettings["tripType"])}
+                      className="mt-1 w-full rounded-lg border border-border bg-surface-container-low px-3 text-sm font-bold transition-colors focus:bg-white"
+                    >
+                      <option value="one-way">เที่ยวเดียว</option>
+                      <option value="round-trip">ไป-กลับ</option>
+                    </select>
+                  </label>
+                  <NumberField label="จำนวนวัน" value={settings.days} min={1} max={7} unit="วัน" onChange={(value) => updateSetting("days", value)} />
+                </div>
               </div>
             </div>
           </section>
 
-          <section className={`${activeSetupPanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
+          <section data-tour="vehicle-profile" className={`${activeSetupPanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center gap-2">
               <Zap className="size-5 text-warning" aria-hidden="true" />
               <h2 className="text-lg font-black text-primary-deep">Vehicle Profile</h2>
@@ -1556,7 +1655,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               <input
                 value={settings.profileName}
                 onChange={(event) => updateSetting("profileName", event.target.value)}
-                className="mt-1 w-full rounded-lg border border-border bg-white px-3 text-sm font-bold text-foreground"
+                className="mt-1 w-full rounded-lg border border-border bg-surface-container-low px-3 text-sm font-bold text-foreground transition-colors focus:bg-white"
               />
             </label>
             <p className="mt-2 rounded-lg bg-yellow/30 px-3 py-2 text-xs font-bold leading-5 text-primary-deep">
@@ -1587,7 +1686,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               <select
                 value={settings.connectorType}
                 onChange={(event) => updateSetting("connectorType", event.target.value as TripSettings["connectorType"])}
-                className="mt-1 w-full rounded-lg border border-border bg-white px-3 text-sm font-bold"
+                className="mt-1 w-full rounded-lg border border-border bg-surface-container-low px-3 text-sm font-bold transition-colors focus:bg-white"
               >
                 {connectorOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -1598,7 +1697,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </label>
           </section>
 
-          <section className={`${activeSetupPanel === "filters" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
+          <section data-tour="filter-settings" className={`${activeSetupPanel === "filters" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">ตัวกรองและข้อจำกัด</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <NumberField label="จุดแวะสูงสุด" value={settings.maxStops} min={0} max={10} unit="จุด" onChange={(value) => updateSetting("maxStops", value)} />
@@ -1618,7 +1717,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               onClick={() => void calculateRoute()}
               disabled={routeActionDisabled}
               title="คำนวณเส้นทางและค้นหาสถานีชาร์จตามทาง"
-              className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-yellow shadow-lg hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-white shadow-lg hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-60"
             >
               {routeLoading ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Navigation className="size-4" aria-hidden="true" />}
               คำนวณเส้นทางและค้นหาสถานีชาร์จ
@@ -1627,11 +1726,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           </div>
         </aside>
 
-        <div className="flex min-h-[680px] flex-col gap-3 lg:h-full lg:min-h-0">
+        <div className="flex min-h-0 flex-col gap-3 lg:col-start-2 lg:row-start-1">
           {(error || status) && (
             <div
               className={`rounded-lg border p-3 text-sm font-bold leading-6 ${
-                error ? "border-danger/25 bg-red-50 text-danger" : "border-cyan/25 bg-blue-50 text-primary"
+                error ? "border-danger/25 bg-red-50 text-danger" : "border-cyan/35 bg-primary-soft/40 text-primary-deep"
               }`}
             >
               {error ? <AlertTriangle className="mr-2 inline size-4" aria-hidden="true" /> : <Info className="mr-2 inline size-4" aria-hidden="true" />}
@@ -1641,8 +1740,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           <GoogleMapPanel
             browserKey={browserKey}
             mapId={mapId}
-            className="min-h-[560px] flex-1 lg:min-h-0"
-            mapClassName="h-full min-h-[560px] lg:min-h-0"
+            className="min-h-[360px] flex-1 sm:min-h-[460px] lg:min-h-[640px]"
+            mapClassName="h-[320px] min-h-[320px] sm:h-[420px] sm:min-h-[420px] lg:h-[min(68vh,760px)] lg:min-h-[560px]"
             origin={origin}
             destination={destination}
             waypoints={waypoints}
@@ -1651,6 +1750,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             tourismCenter={tourismCenter}
             tourismRadiusKm={settings.tourismRadiusKm}
             routePolyline={route?.encodedPolyline}
+            tutorialSearchOpen={tutorialMapSearchOpen}
             onMapCenterSelected={(place) => {
               setTourismCenter(place);
               setStatus("เลือกศูนย์กลางค้นหาจากแผนที่แล้ว");
@@ -1667,7 +1767,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             onSearchNearby={(place) => void searchNearby(place)}
           />
 
-          <section className="rounded-lg border border-border bg-white p-4 shadow-sm lg:hidden">
+          <section className="rounded-2xl border border-border bg-white p-4 shadow-sm lg:hidden">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-black text-primary-deep">ค้นหาพื้นที่ท่องเที่ยว</h2>
@@ -1678,7 +1778,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 onClick={() => tourismCenter && void searchNearby(tourismCenter)}
                 disabled={!tourismCenter || placesLoading}
                 title="ค้นหาสถานที่ท่องเที่ยวรอบศูนย์กลางที่เลือก"
-                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-yellow disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {placesLoading ? <LoaderCircle className="size-4 animate-spin" /> : <Search className="size-4" />}
                 ค้นหา
@@ -1700,7 +1800,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     const category = tourismCategories.find((item) => item.id === event.target.value) ?? tourismCategories[0];
                     setTourismCategory(category);
                   }}
-                  className="mt-2 w-full rounded-lg border border-border bg-white px-3 text-sm font-bold"
+                  className="mt-2 w-full rounded-lg border border-border bg-surface-container-low px-3 text-sm font-bold transition-colors focus:bg-white"
                 >
                   {tourismCategories.map((category) => (
                     <option key={category.id} value={category.id}>
@@ -1718,7 +1818,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   onClick={() => updateSetting("tourismRadiusKm", radius)}
                   title={`กำหนดรัศมีค้นหา ${radius} กิโลเมตร`}
                   className={`min-h-9 rounded-lg border px-3 text-xs font-black ${
-                    settings.tourismRadiusKm === radius ? "border-primary bg-primary text-yellow" : "border-border text-primary"
+                    settings.tourismRadiusKm === radius ? "border-primary bg-primary text-white" : "border-border text-primary"
                   }`}
                 >
                   {radius} กม.
@@ -1728,8 +1828,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           </section>
         </div>
 
-        <aside className="grid h-[80dvh] min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden lg:h-full">
-          <nav data-tour="results-menu" className="flex min-h-12 items-center gap-2 rounded-lg border border-border bg-white p-1.5 shadow-sm" aria-label="เมนูผลลัพธ์ทริป">
+        <aside className="grid h-auto min-h-0 min-w-0 grid-rows-[auto_auto] gap-3 overflow-visible lg:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1">
+          <nav data-tour="results-menu" className="flex min-h-12 items-center gap-2 rounded-2xl border border-border bg-white p-1.5 shadow-sm" aria-label="เมนูผลลัพธ์ทริป">
             <span className="grid size-9 shrink-0 place-items-center rounded-md bg-yellow text-primary-deep">
               <ActivePanelIcon className="size-4" aria-hidden="true" />
             </span>
@@ -1738,7 +1838,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               <select
                 value={activePanel}
                 onChange={(event) => setActivePanel(event.target.value as PlannerMenuKey)}
-                className="min-h-9 w-full rounded-md border border-yellow bg-yellow/70 px-3 text-sm font-black text-primary-deep outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                className="min-h-10 w-full rounded-xl border border-border bg-surface-container-low px-3 text-sm font-black text-primary-deep outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
               >
                 {panelMenuItems.map((item) => (
                   <option key={item.key} value={item.key}>
@@ -1749,8 +1849,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </label>
           </nav>
 
-          <div ref={resultsScrollRef} tabIndex={0} role="region" aria-label="รายละเอียดผลลัพธ์ทริป" className="trip-scrollbar min-h-0 space-y-3 overflow-y-auto overscroll-contain pr-1 pb-1">
-          <section className={`${activePanel === "route" || activePanel === "itinerary" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
+          <div ref={resultsScrollRef} tabIndex={0} role="region" aria-label="รายละเอียดผลลัพธ์ทริป" className="min-h-0 space-y-3 overflow-visible">
+          <section data-tour={activePanel === "itinerary" ? "itinerary-panel" : "route-panel"} className={`${activePanel === "route" || activePanel === "itinerary" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-black text-primary-deep">{activePanel === "itinerary" ? "รายการเดินทาง" : "วางแผนเส้นทาง"}</h2>
               <a
@@ -1770,7 +1870,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               </p>
             ) : null}
             {settings.tripType === "round-trip" ? (
-              <p className="mt-3 rounded-lg border border-cyan/25 bg-blue-50 p-3 text-sm font-bold leading-6 text-primary">
+              <p className="mt-3 rounded-lg border border-cyan/35 bg-primary-soft/40 p-3 text-sm font-bold leading-6 text-primary-deep">
                 <Info className="mr-2 inline size-4" aria-hidden="true" />
                 ระบบจะคำนวณไปปลายทางหลักแล้วกลับต้นทาง
               </p>
@@ -1779,7 +1879,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               <>
                 <div className="mt-4 space-y-3">
                   {origin ? (
-                    <div className="rounded-lg border border-success/20 bg-green-50 p-3">
+                    <div className="rounded-lg border border-success/20 bg-primary-soft/40 p-3">
                       <p className="text-xs font-black text-success">เริ่มต้น</p>
                       <p className="mt-1 text-sm font-black text-primary-deep">{origin.name}</p>
                     </div>
@@ -1872,7 +1972,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                                 จากจุดก่อนหน้า {formatDistance(leg.distanceMeters)} / {formatDuration(leg.duration)}
                               </p>
                             ) : isFirst ? (
-                              <p className="mt-2 rounded-md bg-green-50 px-2 py-1 text-xs font-black text-success">จุดเริ่มต้นของทริป</p>
+                              <p className="mt-2 rounded-md bg-primary-soft/40 px-2 py-1 text-xs font-black text-success">จุดเริ่มต้นของทริป</p>
                             ) : null}
                           </div>
                         </div>
@@ -1889,7 +1989,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             )}
           </section>
 
-          <section className={`${activePanel === "chargers" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
+          <section data-tour="chargers-panel" className={`${activePanel === "chargers" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">สถานีชาร์จตามเส้นทาง</h2>
             <div className="mt-3 space-y-3">
               {chargers.length > 1 ? (
@@ -1905,7 +2005,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                           key={item.key}
                           type="button"
                           aria-pressed={active}
-                          disabled={!origin && (item.key === "origin-near" || item.key === "origin-far")}
+                          disabled={!selectedChargerReference && (item.key === "reference-near" || item.key === "reference-far")}
                           onClick={() => setChargerSort(item.key)}
                           title={`จัดอันดับสถานีชาร์จ: ${item.label}`}
                           className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border px-2 text-[11px] font-black ${
@@ -1918,6 +2018,24 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                       );
                     })}
                   </div>
+                  <label className="mt-3 block">
+                    <span className="px-1 text-xs font-black text-primary-deep">พื้นที่อ้างอิงสำหรับเรียงใกล้/ไกล</span>
+                    <select
+                      value={selectedChargerReference?.value ?? ""}
+                      onChange={(event) => {
+                        setChargerReferenceId(event.target.value);
+                        setChargerSort("reference-near");
+                      }}
+                      disabled={chargerReferenceOptions.length === 0}
+                      title="เลือกต้นทาง ปลายทาง หรือจุดแวะเพื่อจัดอันดับสถานีชาร์จใกล้หรือไกลพื้นที่นั้น"
+                      className="mt-1 min-h-10 w-full rounded-lg border border-border bg-surface-container-low px-3 text-sm font-bold text-primary-deep transition-colors focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {chargerReferenceOptions.length === 0 ? <option value="">ยังไม่มีจุดอ้างอิงในทริป</option> : null}
+                      {chargerReferenceOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               ) : null}
               {chargerNotice ? (
@@ -1936,28 +2054,30 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   หลังคำนวณเส้นทาง ระบบจะค้นหาสถานีชาร์จตามเส้นทาง หรือค้นหาใกล้จุดสำคัญของทริปเมื่อเส้นทางยาวมาก
                 </p>
               ) : (
-                sortedChargers.map((place) => {
-                  const metric = getChargerMetric(place);
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {sortedChargers.map((place) => {
+                    const metric = getChargerMetric(place);
 
-                  return (
-                    <PlaceListCard
-                      key={place.id}
-                      place={place}
-                      actionLabel="เพิ่มเป็นจุดชาร์จ"
-                      added={waypoints.some((waypoint) => samePlace(waypoint, place))}
-                      metricLabel={metric.label}
-                      metricValue={metric.value}
-                      recommendationBadges={getChargerRecommendationBadges(place)}
-                      onAction={() => addWaypoint(place)}
-                      onNearby={() => void searchNearby(place, nearbyActivityTypes, 2)}
-                    />
-                  );
-                })
+                    return (
+                      <PlaceListCard
+                        key={place.id}
+                        place={place}
+                        actionLabel="เพิ่มเป็นจุดชาร์จ"
+                        added={waypoints.some((waypoint) => samePlace(waypoint, place))}
+                        metricLabel={metric.label}
+                        metricValue={metric.value}
+                        recommendationBadges={getChargerRecommendationBadges(place)}
+                        onAction={() => addWaypoint(place)}
+                        onNearby={() => void searchNearby(place, nearbyActivityTypes, 2)}
+                      />
+                    );
+                  })}
+                </div>
               )}
             </div>
           </section>
 
-          <section className={`${activePanel === "nearby" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
+          <section data-tour="nearby-panel" className={`${activePanel === "nearby" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">สถานที่ใกล้เคียง</h2>
             <div className="mt-3 rounded-lg border border-border bg-surface-strong p-3">
               <PlaceSearchInput
@@ -1975,7 +2095,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     const category = tourismCategories.find((item) => item.id === event.target.value) ?? tourismCategories[0];
                     setTourismCategory(category);
                   }}
-                  className="mt-2 w-full rounded-lg border border-border bg-white px-3 text-sm font-bold"
+                  className="mt-2 w-full rounded-lg border border-border bg-surface-container-low px-3 text-sm font-bold transition-colors focus:bg-white"
                 >
                   {tourismCategories.map((category) => (
                     <option key={category.id} value={category.id}>
@@ -1992,7 +2112,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     onClick={() => updateSetting("tourismRadiusKm", radius)}
                     title={`กำหนดรัศมีค้นหา ${radius} กิโลเมตร`}
                     className={`min-h-10 rounded-lg border px-3 text-xs font-black ${
-                      settings.tourismRadiusKm === radius ? "border-primary bg-primary text-yellow" : "border-border bg-white text-primary"
+                      settings.tourismRadiusKm === radius ? "border-primary bg-primary text-white" : "border-border bg-white text-primary"
                     }`}
                   >
                     {radius} กม.
@@ -2004,7 +2124,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 onClick={() => tourismCenter && void searchNearby(tourismCenter)}
                 disabled={!tourismCenter || placesLoading}
                 title="ค้นหาที่แวะใกล้ศูนย์กลางที่เลือก"
-                className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-yellow disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {placesLoading ? <LoaderCircle className="size-4 animate-spin" /> : <Search className="size-4" />}
                 ค้นหาที่แวะใกล้เคียง
@@ -2028,7 +2148,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </div>
           </section>
 
-          <section className={`${activePanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
+          <section data-tour="battery-panel" className={`${activePanel === "vehicle" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">ประเมินแบตเตอรี่</h2>
             <p className="mt-2 text-xs font-bold leading-5 text-muted">
               เป็นการประมาณการจากระยะทางและค่า km/kWh เท่านั้น ผลจริงขึ้นกับความเร็ว อากาศ จราจร น้ำหนักบรรทุก แอร์ ความลาดชัน และสภาพแบตเตอรี่
@@ -2068,7 +2188,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               <h2 className="text-lg font-black text-primary-deep">Route ที่บันทึก</h2>
               <span className="rounded-md bg-primary-soft px-2 py-1 text-xs font-black text-primary">{savedRoutes.length}/{maxSavedRoutes}</span>
             </div>
-            <section className="mt-3 rounded-lg border border-cyan/35 bg-cyan/10 p-3" aria-label="Cloud Sync">
+            <section data-tour="cloud-sync" className="mt-3 rounded-lg border border-cyan/35 bg-cyan/10 p-3" aria-label="Cloud Sync">
               <div className="flex items-start gap-2">
                 <span className="grid size-8 shrink-0 place-items-center rounded-md bg-white text-cyan-deep shadow-sm">
                   <Cloud className="size-4" aria-hidden="true" />
@@ -2081,7 +2201,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     <>
                       <p className="mt-1 text-xs font-bold leading-5 text-muted">คำนวณ Route ได้ทันที แต่ต้องเข้าสู่ระบบก่อนจึงจะบันทึก เปิด ลบ นำเข้า หรือส่งออก Route ได้</p>
                       <SignInButton mode="modal">
-                        <button type="button" onClick={preserveRouteForAuthReturn} title="เข้าสู่ระบบเพื่อบันทึก Route" className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+                        <button type="button" onClick={preserveRouteForAuthReturn} title="เข้าสู่ระบบเพื่อบันทึก Route" className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-white">
                           <LogIn className="size-3.5" aria-hidden="true" />
                           เข้าสู่ระบบ
                         </button>
@@ -2108,13 +2228,13 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                             onClick={() => user && void mergeCloudRoutes(user.id, "ซิงก์ Route ล่าสุดกับ Cloud แล้ว")}
                             disabled={cloudSyncBusy}
                             title="รวม Route ล่าสุดจาก Cloud และเครื่องนี้"
-                            className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow disabled:cursor-wait disabled:opacity-60"
+                            className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-white disabled:cursor-wait disabled:opacity-60"
                           >
                             {cloudSyncBusy ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
                             ซิงก์ตอนนี้
                           </button>
                         ) : (
-                          <button type="button" onClick={() => setCloudSyncPromptOpen(true)} title="เลือกเก็บ Route ใน Cloud" className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+                          <button type="button" onClick={() => setCloudSyncPromptOpen(true)} title="เลือกเก็บ Route ใน Cloud" className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-white">
                             <CloudUpload className="size-3.5" aria-hidden="true" />
                             เปิด Cloud Sync
                           </button>
@@ -2132,7 +2252,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 </div>
               </div>
             </section>
-            <label className="mt-3 block">
+            <label data-tour="route-name" className="mt-3 block">
               <span className="text-xs font-black text-primary-deep">ตั้งชื่อ route</span>
               <input
                 value={routeName}
@@ -2149,11 +2269,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 }}
                 placeholder="เช่น ทริปเขาค้อ พ.ย. 2569"
                 title={isSignedIn ? "ตั้งชื่อ route ก่อนบันทึก" : "กรุณา log in ก่อนตั้งชื่อ Route"}
-                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-bold text-primary-deep outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 read-only:cursor-not-allowed read-only:bg-surface-strong"
+                className="mt-1 w-full rounded-lg border border-border bg-surface-container-low px-3 py-2 text-sm font-bold text-primary-deep outline-none transition-colors focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/15 read-only:cursor-not-allowed read-only:bg-surface-strong"
               />
             </label>
             <div data-tour="save-actions" className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" onClick={saveTrip} title="บันทึก route นี้เป็นรายการใหม่ในเครื่อง" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+              <button type="button" onClick={saveTrip} title="บันทึก route นี้เป็นรายการใหม่ในเครื่อง" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-white">
                 <Save className="size-4" />
                 บันทึก route
               </button>
@@ -2161,6 +2281,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 <Eraser className="size-4" />
                 ล้าง
               </button>
+              <div data-tour="route-files" className="col-span-2 grid grid-cols-2 gap-2">
               <button type="button" onClick={exportTrip} title="ดาวน์โหลดข้อมูลทริปเป็นไฟล์ JSON" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary">
                 <Download className="size-4" />
                 ส่งออก JSON
@@ -2169,7 +2290,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 <Upload className="size-4" />
                 นำเข้า
               </button>
-              <button type="button" onClick={() => void shareRoute()} title="แชร์ Route พร้อมลิงก์กลับมายัง Tikkie Trip" className="col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-cyan/50 bg-cyan/10 px-3 text-xs font-black text-primary hover:bg-cyan/20">
+              </div>
+              <button data-tour="share-route" type="button" onClick={() => void shareRoute()} title="แชร์ Route พร้อมลิงก์กลับมายัง Tikkie Trip" className="col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-cyan/50 bg-cyan/10 px-3 text-xs font-black text-primary hover:bg-cyan/20">
                 <Share2 className="size-4" />
                 แชร์ route
               </button>
@@ -2181,7 +2303,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               className="hidden"
               onChange={(event) => void importTrip(event.target.files?.[0])}
             />
-            <div className="mt-4 space-y-2">
+            <div data-tour="saved-routes" className="mt-4 space-y-2">
               {savedRoutes.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border p-3 text-xs font-bold leading-5 text-muted">
                   ยังไม่มี route ที่บันทึก ตั้งชื่อ route แล้วกด “บันทึก route” เพื่อเก็บรายการแรก
@@ -2204,7 +2326,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                       </span>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => openSavedRoute(savedRoute)} title={`เปิด route ${savedRoute.name}`} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow">
+                      <button type="button" onClick={() => openSavedRoute(savedRoute)} title={`เปิด route ${savedRoute.name}`} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-white">
                         <Navigation className="size-3.5" />
                         เปิด
                       </button>
@@ -2234,6 +2356,51 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           </div>
         </aside>
       </div>
+      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/90 shadow-[0_-4px_16px_rgba(32,41,35,0.08)] backdrop-blur-xl lg:hidden" aria-label="เมนูนำทางหลัก">
+        <div className="mx-auto grid max-w-xl grid-cols-4 gap-1 px-2 py-1.5">
+          {mobileNavigationItems.map((item) => {
+            const Icon = item.icon;
+            const selected = item.key === "plan"
+              ? activeSetupPanel === "trip" && activePanel === "route"
+              : item.key === "route"
+                ? activePanel === "route" || activePanel === "itinerary"
+                : item.key === "chargers"
+                  ? activePanel === "chargers"
+                  : activeSetupPanel === "vehicle" || activePanel === "vehicle";
+
+            return (
+              <button
+                key={item.key}
+                type="button"
+                aria-current={selected ? "page" : undefined}
+                title={`เปิด${item.label}`}
+                onClick={() => {
+                  let target = "[data-tour=\"trip-settings\"]";
+                  if (item.key === "plan") {
+                    setActiveSetupPanel("trip");
+                    setActivePanel("route");
+                  } else if (item.key === "route") {
+                    setActivePanel("itinerary");
+                    target = "[data-tour=\"itinerary-panel\"]";
+                  } else if (item.key === "chargers") {
+                    setActivePanel("chargers");
+                    target = "[data-tour=\"chargers-panel\"]";
+                  } else {
+                    setActiveSetupPanel("vehicle");
+                    setActivePanel("vehicle");
+                    target = "[data-tour=\"vehicle-profile\"]";
+                  }
+                  window.setTimeout(() => document.querySelector(target)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+                }}
+                className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-black transition sm:text-xs ${selected ? "bg-secondary-container text-primary" : "text-muted hover:bg-surface-container-low"}`}
+              >
+                <Icon className="size-5" aria-hidden="true" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
       {cloudSyncPromptOpen && isSignedIn && user ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-primary-deep/55 p-4" role="dialog" aria-modal="true" aria-labelledby="cloud-sync-title">
           <section className="w-full max-w-md rounded-lg border border-border bg-white p-5 shadow-2xl">
@@ -2257,7 +2424,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 onClick={() => void enableCloudSync()}
                 disabled={cloudSyncBusy}
                 title="รวม Route ในเครื่องนี้กับ Cloud ของบัญชีคุณ"
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-yellow disabled:cursor-wait disabled:opacity-60"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-white disabled:cursor-wait disabled:opacity-60"
               >
                 {cloudSyncBusy ? <LoaderCircle className="size-4 animate-spin" /> : <CloudUpload className="size-4" />}
                 เก็บใน Cloud

@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "วางแผนเที่ยวด้วยรถ EV ค้นหาสถานีชาร์จและสถานที่แวะตามเส้นทาง",
     start_url: "/",
     display: "standalone",
-    background_color: "#f3f7ff",
-    theme_color: "#1700C7",
+    background_color: "#f2fcf2",
+    theme_color: "#f2fcf2",
     lang: "th",
     icons: [
       {

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { CreditFooter } from "@/components/CreditFooter";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1700C7",
+  themeColor: "#f2fcf2",
   width: "device-width",
   initialScale: 1,
 };
@@ -33,7 +34,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="th">
       <body>
-        <ClerkProvider dynamic>{children}</ClerkProvider>
+        <ClerkProvider dynamic>
+          <div className="flex min-h-dvh flex-col">
+            <div className="flex-1">{children}</div>
+            <CreditFooter />
+          </div>
+        </ClerkProvider>
       </body>
     </html>
   );

@@ -164,7 +164,7 @@ export function PlaceSearchInput({ label, value, placeholder, helperText, center
       <label htmlFor={inputId} className="text-sm font-black text-primary-deep">
         {label}
       </label>
-      <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-white px-3 shadow-sm focus-within:border-cyan focus-within:ring-2 focus-within:ring-cyan/20">
+      <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-surface-container-low px-3 shadow-sm transition-colors focus-within:border-cyan focus-within:bg-white focus-within:ring-2 focus-within:ring-cyan/20">
         <Search className="size-4 shrink-0 text-cyan-deep" aria-hidden="true" />
         <input
           id={inputId}
@@ -201,7 +201,7 @@ export function PlaceSearchInput({ label, value, placeholder, helperText, center
           onClick={() => void searchByText()}
           title={`ค้นหาสถานที่ด้วยชื่อ ${query}`}
           disabled={textSearchLoading}
-          className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-cyan/40 bg-blue-50 px-3 text-xs font-black text-primary hover:border-cyan disabled:opacity-60"
+          className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-cyan/40 bg-primary-soft/40 px-3 text-xs font-black text-primary hover:border-cyan disabled:opacity-60"
         >
           {textSearchLoading ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Search className="size-3.5" aria-hidden="true" />}
           ค้นหาด้วยชื่อนี้
@@ -212,7 +212,7 @@ export function PlaceSearchInput({ label, value, placeholder, helperText, center
         <div
           id={listId}
           role="listbox"
-          className="absolute z-40 mt-2 max-h-72 w-full overflow-auto rounded-lg border border-border bg-white p-2 shadow-[0_24px_70px_rgba(13,18,56,0.18)]"
+          className="absolute z-40 mt-2 max-h-72 w-full overflow-auto rounded-lg border border-border bg-white p-2 shadow-[0_24px_70px_rgba(32,41,35,0.16)]"
         >
           {predictions.map((prediction) => (
             <button

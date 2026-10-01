@@ -20,6 +20,7 @@ type GoogleMapPanelProps = {
   tourismCenter: PlannerPlace | null;
   tourismRadiusKm: number;
   routePolyline?: string;
+  tutorialSearchOpen?: boolean | null;
   onMapCenterSelected: (place: PlannerPlace) => void;
   onAddWaypoint: (place: PlannerPlace) => void;
   onSetOrigin: (place: PlannerPlace) => void;
@@ -91,6 +92,7 @@ export function GoogleMapPanel({
   tourismCenter,
   tourismRadiusKm,
   routePolyline,
+  tutorialSearchOpen = null,
   onMapCenterSelected,
   onAddWaypoint,
   onSetOrigin,
@@ -104,33 +106,34 @@ export function GoogleMapPanel({
   const [loadError, setLoadError] = useState("");
   const [ready, setReady] = useState(false);
   const [mapSearchPlace, setMapSearchPlace] = useState<PlannerPlace | null>(null);
-  const [isSearchOpen, setIsSearchOpen] = useState(true);
+  const [internalSearchOpen, setInternalSearchOpen] = useState(true);
+  const isSearchOpen = tutorialSearchOpen ?? internalSearchOpen;
 
   const markerConfigs = useMemo(() => {
     const configs: MarkerConfig[] = [];
 
     if (origin) {
-      configs.push({ place: origin, label: "ต้นทาง", color: "#16803c", canAdd: false });
+      configs.push({ place: origin, label: "ต้นทาง", color: "#03372d", canAdd: false });
     }
 
     waypoints.forEach((place, index) => {
-      configs.push({ place, label: `จุดแวะ ${index + 1}`, color: "#b77900", canAdd: false });
+      configs.push({ place, label: `จุดแวะ ${index + 1}`, color: "#58624c", canAdd: false });
     });
 
     if (destination) {
-      configs.push({ place: destination, label: "ปลายทาง", color: "#c52828", canAdd: false });
+      configs.push({ place: destination, label: "ปลายทาง", color: "#ba1a1a", canAdd: false });
     }
 
     chargers.forEach((place) => {
-      configs.push({ place, label: "สถานีชาร์จ", color: "#006dff", canAdd: true });
+      configs.push({ place, label: "สถานีชาร์จ", color: "#3a675b", canAdd: true });
     });
 
     nearbyPlaces.forEach((place) => {
-      configs.push({ place, label: "สถานที่ใกล้เคียง", color: "#7c3aed", canAdd: true });
+      configs.push({ place, label: "สถานที่ใกล้เคียง", color: "#58624c", canAdd: true });
     });
 
     if (tourismCenter) {
-      configs.push({ place: tourismCenter, label: "ศูนย์กลางค้นหา", color: "#0f766e", canAdd: false });
+      configs.push({ place: tourismCenter, label: "ศูนย์กลางค้นหา", color: "#204e43", canAdd: false });
     }
 
     return configs;
@@ -200,7 +203,7 @@ export function GoogleMapPanel({
       const path = decodePolyline(routePolyline).map(toGoogleLatLng);
       const polyline = new window.google.maps.Polyline({
         path,
-        strokeColor: "#1700c7",
+        strokeColor: "#204e43",
         strokeOpacity: 0.92,
         strokeWeight: 5,
         map: mapRef.current,
@@ -247,9 +250,9 @@ export function GoogleMapPanel({
       const circle = new window.google.maps.Circle({
         center: toGoogleLatLng(tourismCenter.location),
         radius: tourismRadiusKm * 1000,
-        fillColor: "#00a5ff",
+        fillColor: "#a1d0c2",
         fillOpacity: 0.08,
-        strokeColor: "#00a5ff",
+        strokeColor: "#3a675b",
         strokeOpacity: 0.7,
         strokeWeight: 2,
         map: mapRef.current,
@@ -284,7 +287,7 @@ export function GoogleMapPanel({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setIsSearchOpen((current) => !current)}
+            onClick={() => setInternalSearchOpen((current) => !current)}
             aria-expanded={isSearchOpen}
             title={isSearchOpen ? "พับกล่องค้นหาบนแผนที่" : "เปิดกล่องค้นหาบนแผนที่"}
             className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-black text-primary hover:border-cyan"
@@ -312,8 +315,8 @@ export function GoogleMapPanel({
       ) : (
         <div className="relative min-h-0 flex-1">
           <div ref={mapElementRef} className={`${mapClassName} w-full bg-primary-soft`} />
-          {isSearchOpen ? <div className="absolute left-3 right-3 top-3 z-10 max-w-2xl sm:left-4 sm:right-auto sm:w-[min(560px,calc(100%-2rem))]">
-            <div className="rounded-lg border border-border bg-white/95 p-3 shadow-[0_18px_55px_rgba(13,18,56,0.22)] backdrop-blur">
+          {isSearchOpen ? <div data-tour="map-search" className="absolute left-3 right-3 top-3 z-10 max-w-2xl sm:left-4 sm:right-auto sm:w-[min(560px,calc(100%-2rem))]">
+            <div className="rounded-lg border border-border bg-white/95 p-3 shadow-[0_18px_55px_rgba(32,41,35,0.16)] backdrop-blur">
               <PlaceSearchInput
                 label="ค้นหาบนแผนที่"
                 placeholder="พิมพ์ชื่อสถานที่ เช่น บ้าน ร้านอาหาร สถานีชาร์จ"
@@ -358,7 +361,7 @@ export function GoogleMapPanel({
                     type="button"
                     onClick={() => onSearchNearby(mapSearchPlace)}
                     title="ค้นหาสถานที่ใกล้จุดนี้"
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-yellow"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-white"
                   >
                     <Navigation className="size-4" aria-hidden="true" />
                     ค้นหารอบจุดนี้
@@ -381,7 +384,7 @@ export function GoogleMapPanel({
             <span className="inline-flex items-center gap-1"><MapPinned className="size-3 text-danger" /> ปลายทาง</span>
             <span className="inline-flex items-center gap-1"><MapPinned className="size-3 text-warning" /> จุดแวะ</span>
             <span className="inline-flex items-center gap-1"><MapPinned className="size-3 text-cyan-deep" /> สถานีชาร์จ</span>
-            <span className="inline-flex items-center gap-1"><MapPinned className="size-3 text-violet-700" /> สถานที่ใกล้เคียง</span>
+            <span className="inline-flex items-center gap-1"><MapPinned className="size-3 text-secondary" /> สถานที่ใกล้เคียง</span>
           </div>
         </div>
       )}

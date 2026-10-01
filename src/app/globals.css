@@ -2,23 +2,29 @@
 
 :root {
   color-scheme: light;
-  --background: #f3f7ff;
-  --foreground: #0d1238;
+  --background: #f2fcf2;
+  --foreground: #151e18;
   --surface: #ffffff;
-  --surface-strong: #eef5ff;
-  --primary: #1700c7;
-  --primary-deep: #070044;
-  --primary-soft: #dbe8ff;
-  --cyan: #00a5ff;
-  --cyan-deep: #006dff;
-  --yellow: #ffe66d;
-  --yellow-soft: #fff4a3;
-  --success: #16803c;
-  --warning: #b77900;
-  --danger: #c52828;
-  --muted: #64748b;
-  --border: #cfd9f8;
-  --ring: #00a5ff;
+  --surface-strong: #e1ebe1;
+  --surface-container: #e6f1e7;
+  --surface-container-high: #e1ebe1;
+  --surface-container-highest: #dbe5dc;
+  --surface-container-low: #ecf6ed;
+  --primary: #03372d;
+  --primary-deep: #204e43;
+  --primary-soft: #dce7cb;
+  --secondary: #58624c;
+  --secondary-container: #dce7cb;
+  --cyan: #a1d0c2;
+  --cyan-deep: #3a675b;
+  --yellow: #dce7cb;
+  --yellow-soft: #bceddd;
+  --success: #1c7046;
+  --warning: #58624c;
+  --danger: #ba1a1a;
+  --muted: #5d6c63;
+  --border: #d4ded5;
+  --ring: #3a675b;
 }
 
 @theme inline {
@@ -26,9 +32,15 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-strong: var(--surface-strong);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-surface-container-low: var(--surface-container-low);
   --color-primary: var(--primary);
   --color-primary-deep: var(--primary-deep);
   --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-container: var(--secondary-container);
   --color-cyan: var(--cyan);
   --color-cyan-deep: var(--cyan-deep);
   --color-yellow: var(--yellow);
@@ -38,9 +50,9 @@
   --color-danger: var(--danger);
   --color-muted: var(--muted);
   --color-border: var(--border);
-  --radius-lg: 8px;
-  --radius-md: 7px;
-  --radius-sm: 6px;
+  --radius-lg: 16px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
   --font-sans: "Noto Sans Thai", "Leelawadee UI", "Segoe UI", Arial, ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -56,7 +68,7 @@ html {
 body {
   min-height: 100%;
   margin: 0;
-  background: linear-gradient(180deg, #f3f7ff 0%, #ffffff 62%);
+  background: #f2fcf2;
   color: var(--foreground);
   font-family: var(--font-sans);
   letter-spacing: 0;
@@ -90,7 +102,7 @@ textarea {
 
 .trip-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #80a5ff transparent;
+  scrollbar-color: #a1d0c2 transparent;
 }
 
 .trip-scrollbar::-webkit-scrollbar {
@@ -100,12 +112,12 @@ textarea {
 
 .trip-scrollbar::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: #80a5ff;
+  background: #a1d0c2;
 }
 
 .google-map-info {
   max-width: 260px;
-  color: #0d1238;
+  color: #151e18;
   font-family: "Noto Sans Thai", "Leelawadee UI", "Segoe UI", Arial, sans-serif;
 }
 
@@ -118,12 +130,20 @@ textarea {
   margin-top: 8px;
   margin-right: 6px;
   border-radius: 7px;
-  border: 1px solid #cfd9f8;
+  border: 1px solid #d4ded5;
   padding: 6px 10px;
-  background: #1700c7;
-  color: #ffe66d;
+  background: #03372d;
+  color: #ffffff;
   font-weight: 800;
   cursor: pointer;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+[data-tour] {
+  scroll-margin-top: 6rem;
 }
 
 @media (max-width: 640px) {
