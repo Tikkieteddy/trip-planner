@@ -1121,20 +1121,31 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     setTourismCenter(center);
 
     try {
-      const response = await postJson<PlacesResponse>("/api/places", {
-        mode: "nearby",
-        center: center.location,
-        radiusKm,
-        includedTypes: types,
-        maxResultCount: 12,
-        rankPreference: "POPULARITY",
-      });
-      setNearbyPlaces(response.places);
+      const dedicatedTypes = ["gas_station", "rest_stop"].filter((type) => types.includes(type));
+      const activityTypes = types.filter((type) => !dedicatedTypes.includes(type));
+      const searchGroups = [
+        ...(activityTypes.length ? [{ types: activityTypes, rank: "POPULARITY" as const }] : []),
+        ...dedicatedTypes.map((type) => ({ types: [type], rank: "DISTANCE" as const })),
+      ];
+      const responses = await Promise.all(
+        searchGroups.map(({ types: includedTypes, rank }) =>
+          postJson<PlacesResponse>("/api/places", {
+            mode: "nearby",
+            center: center.location,
+            radiusKm,
+            includedTypes,
+            maxResultCount: 20,
+            rankPreference: rank,
+          }),
+        ),
+      );
+      const places = uniquePlaces(responses.flatMap((response) => response.places)).slice(0, 40);
+      setNearbyPlaces(places);
 
-      if (response.places.length === 0) {
+      if (places.length === 0) {
         setStatus("Google Places ไม่พบสถานที่ในรัศมีที่เลือก");
       } else {
-        setStatus(`พบสถานที่ใกล้เคียง ${response.places.length} แห่ง`);
+        setStatus(`พบสถานที่ใกล้เคียง ${places.length} แห่ง`);
       }
     } catch (fetchError) {
       setNearbyPlaces([]);
@@ -2131,7 +2142,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             <div className="mt-3 space-y-3">
               {nearbyPlaces.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border p-4 text-sm font-bold leading-6 text-muted">
-                  เลือกสถานีชาร์จหรือค้นหาพื้นที่ท่องเที่ยวเพื่อแสดงร้านอาหาร คาเฟ่ โรงแรม แหล่งช้อปปิ้ง และสถานที่แวะ
+                  เลือกสถานีชาร์จหรือศูนย์กลางพื้นที่ แล้วค้นหาร้านอาหาร คาเฟ่ โรงแรม ปั๊มน้ำมัน และจุดพักรถได้
                 </p>
               ) : (
                 nearbyPlaces.map((place) => (

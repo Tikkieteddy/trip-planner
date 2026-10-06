@@ -20,6 +20,8 @@ export const tourismCategories: TourismCategory[] = [
   { id: "cafe", label: "คาเฟ่", includedTypes: ["cafe"] },
   { id: "restaurant", label: "ร้านอาหาร", includedTypes: ["restaurant"] },
   { id: "hotel", label: "โรงแรม", includedTypes: ["hotel"] },
+  { id: "fuel", label: "ปั๊มน้ำมัน", includedTypes: ["gas_station"] },
+  { id: "rest-stop", label: "จุดพักรถ", includedTypes: ["rest_stop"] },
   { id: "shopping", label: "แหล่งช้อปปิ้ง", includedTypes: ["shopping_mall"] },
 ];
 
@@ -29,8 +31,9 @@ export const nearbyActivityTypes = [
   "public_bathroom",
   "shopping_mall",
   "convenience_store",
-  "tourist_attraction",
   "hotel",
+  "gas_station",
+  "rest_stop",
 ];
 
 export function connectorLabel(value?: string) {
