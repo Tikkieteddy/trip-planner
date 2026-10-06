@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
+import { Auth0Provider } from "@auth0/nextjs-auth0/client";
 import { CreditFooter } from "@/components/CreditFooter";
 import "./globals.css";
 
@@ -34,12 +34,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="th">
       <body>
-        <ClerkProvider dynamic>
+        <Auth0Provider>
           <div className="flex min-h-dvh flex-col">
             <div className="flex-1">{children}</div>
             <CreditFooter />
           </div>
-        </ClerkProvider>
+        </Auth0Provider>
       </body>
     </html>
   );

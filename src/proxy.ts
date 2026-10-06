@@ -1,8 +1,9 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextRequest } from "next/server";
+import { auth0 } from "@/lib/auth0";
 
-// The public Vercel alias is not registered as a Clerk Frontend API proxy host.
-// Use Clerk's managed frontend API host so authentication remains available.
-export default clerkMiddleware();
+export async function proxy(request: NextRequest) {
+  return auth0.middleware(request);
+}
 
 export const config = {
   matcher: [

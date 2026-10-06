@@ -33,7 +33,7 @@ import {
   Zap,
 } from "lucide-react";
 import Image from "next/image";
-import { SignInButton, SignOutButton, useUser } from "@clerk/nextjs";
+import { useUser } from "@auth0/nextjs-auth0/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { connectorLabel, connectorOptions, nearbyActivityTypes, tourismCategories } from "@/data/place-types";
 import { estimateBatteryByLegs, batterySummaryText } from "@/lib/battery";
@@ -436,7 +436,9 @@ function PlaceListCard({
 }
 
 export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
-  const { isLoaded: isAuthLoaded, isSignedIn, user } = useUser();
+  const { isLoading: isAuthLoading, user } = useUser();
+  const isAuthLoaded = !isAuthLoading;
+  const isSignedIn = Boolean(user);
   const [settings, setSettings] = useState<TripSettings>(defaultSettings);
   const [origin, setOrigin] = useState<PlannerPlace | null>(null);
   const [destination, setDestination] = useState<PlannerPlace | null>(null);
@@ -651,7 +653,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       return;
     }
 
-    const preference = readCloudSyncPreference(user.id);
+    const preference = readCloudSyncPreference(user.sub);
     setCloudSyncPreference(preference);
 
     if (preference === "undecided") {
@@ -660,9 +662,9 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     }
 
     setCloudSyncPromptOpen(false);
-    if (preference === "enabled" && cloudLoadedUserIdRef.current !== user.id) {
-      cloudLoadedUserIdRef.current = user.id;
-      void mergeCloudRoutes(user.id, "รวม Route ในเครื่องและ Cloud แล้ว");
+    if (preference === "enabled" && cloudLoadedUserIdRef.current !== user.sub) {
+      cloudLoadedUserIdRef.current = user.sub;
+      void mergeCloudRoutes(user.sub, "รวม Route ในเครื่องและ Cloud แล้ว");
     }
   }, [isAuthLoaded, isSignedIn, mergeCloudRoutes, routeLibraryLoaded, user]);
 
@@ -1179,14 +1181,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   async function enableCloudSync() {
     if (!user) return;
 
-    const synced = await mergeCloudRoutes(user.id, "เปิด Cloud Sync และรวม Route ของคุณแล้ว");
+    const synced = await mergeCloudRoutes(user.sub, "เปิด Cloud Sync และรวม Route ของคุณแล้ว");
     if (synced) setCloudSyncPromptOpen(false);
   }
 
   function keepRoutesOnThisDevice() {
     if (!user) return;
 
-    writeCloudSyncPreference(user.id, "local");
+    writeCloudSyncPreference(user.sub, "local");
     setCloudSyncPreference("local");
     setCloudSyncPromptOpen(false);
     setCloudSyncMessage("Route จะเก็บไว้เฉพาะเบราว์เซอร์เครื่องนี้");
@@ -1435,12 +1437,10 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               {!isAuthLoaded ? (
                 <span className="inline-flex min-h-10 items-center rounded-xl border border-border bg-surface-container-low px-3 text-xs font-black text-muted">กำลังตรวจบัญชี</span>
               ) : !isSignedIn ? (
-                <SignInButton mode="modal">
-                  <button data-tour="account" type="button" onClick={preserveRouteForAuthReturn} title="เข้าสู่ระบบเพื่อบันทึกและซิงก์ Route" aria-label="เข้าสู่ระบบ" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-surface-container-low px-2 text-xs font-black text-primary-deep hover:bg-secondary-container sm:px-3">
+                <a data-tour="account" href="/auth/login?returnTo=%2F" onClick={preserveRouteForAuthReturn} title="เข้าสู่ระบบเพื่อบันทึกและซิงก์ Route" aria-label="เข้าสู่ระบบ" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-surface-container-low px-2 text-xs font-black text-primary-deep hover:bg-secondary-container sm:px-3">
                     <LogIn className="size-4" aria-hidden="true" />
                     <span className="hidden sm:inline">เข้าสู่ระบบ</span>
-                  </button>
-                </SignInButton>
+                </a>
               ) : (
                 <>
                   <button
@@ -1451,13 +1451,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     className="inline-flex min-h-10 max-w-44 items-center gap-2 rounded-xl border border-border bg-surface-container-low px-3 text-xs font-black text-primary-deep hover:bg-secondary-container"
                   >
                     <Cloud className="size-4 shrink-0" aria-hidden="true" />
-                    <span className="truncate">{user?.firstName ?? user?.primaryEmailAddress?.emailAddress ?? "บัญชีของฉัน"}</span>
+                    <span className="truncate">{user?.name ?? user?.email ?? "บัญชีของฉัน"}</span>
                   </button>
-                  <SignOutButton redirectUrl="/">
-                    <button type="button" title="ออกจากระบบ" aria-label="ออกจากระบบ" className="grid size-10 place-items-center rounded-xl border border-border bg-surface-container-low text-primary-deep hover:bg-secondary-container">
-                      <LogOut className="size-4" aria-hidden="true" />
-                    </button>
-                  </SignOutButton>
+                  <a href="/auth/logout" title="ออกจากระบบ" aria-label="ออกจากระบบ" className="grid size-10 place-items-center rounded-xl border border-border bg-surface-container-low text-primary-deep hover:bg-secondary-container">
+                    <LogOut className="size-4" aria-hidden="true" />
+                  </a>
                 </>
               )}
               <TutorialGuide onStepEnter={enterTutorialStep} onClose={closeTutorial} />
@@ -2200,17 +2198,15 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   ) : !isSignedIn ? (
                     <>
                       <p className="mt-1 text-xs font-bold leading-5 text-muted">คำนวณ Route ได้ทันที แต่ต้องเข้าสู่ระบบก่อนจึงจะบันทึก เปิด ลบ นำเข้า หรือส่งออก Route ได้</p>
-                      <SignInButton mode="modal">
-                        <button type="button" onClick={preserveRouteForAuthReturn} title="เข้าสู่ระบบเพื่อบันทึก Route" className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-white">
+                      <a href="/auth/login?returnTo=%2F" onClick={preserveRouteForAuthReturn} title="เข้าสู่ระบบเพื่อบันทึก Route" className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-white">
                           <LogIn className="size-3.5" aria-hidden="true" />
                           เข้าสู่ระบบ
-                        </button>
-                      </SignInButton>
+                      </a>
                     </>
                   ) : (
                     <>
                       <p className="mt-1 text-xs font-bold leading-5 text-muted">
-                        บัญชี {user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "ของคุณ"}
+                      บัญชี {user?.name ?? user?.email ?? "ของคุณ"}
                       </p>
                       <p className="mt-1 text-xs font-bold leading-5 text-primary-deep">
                         {cloudSyncPreference === "enabled"
@@ -2225,7 +2221,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                         {cloudSyncPreference === "enabled" ? (
                           <button
                             type="button"
-                            onClick={() => user && void mergeCloudRoutes(user.id, "ซิงก์ Route ล่าสุดกับ Cloud แล้ว")}
+                            onClick={() => user && void mergeCloudRoutes(user.sub, "ซิงก์ Route ล่าสุดกับ Cloud แล้ว")}
                             disabled={cloudSyncBusy}
                             title="รวม Route ล่าสุดจาก Cloud และเครื่องนี้"
                             className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-black text-white disabled:cursor-wait disabled:opacity-60"
@@ -2239,12 +2235,10 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                             เปิด Cloud Sync
                           </button>
                         )}
-                        <SignOutButton redirectUrl="/">
-                          <button type="button" title="ออกจากระบบ" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 text-xs font-black text-primary">
+                        <a href="/auth/logout" title="ออกจากระบบ" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 text-xs font-black text-primary">
                             <LogOut className="size-3.5" aria-hidden="true" />
                             ออกจากระบบ
-                          </button>
-                        </SignOutButton>
+                        </a>
                       </div>
                       {cloudSyncMessage ? <p className="mt-2 text-xs font-bold leading-5 text-primary-deep">{cloudSyncMessage}</p> : null}
                     </>
@@ -2411,7 +2405,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               <div className="min-w-0 flex-1">
                 <h2 id="cloud-sync-title" className="text-lg font-black text-primary-deep">เก็บ Route ใน Cloud ไหม?</h2>
                 <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-                  ระบบจะรวม Route ที่มีในเครื่องนี้กับ Cloud ของบัญชี {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "คุณ"} เพื่อเปิดต่อบนมือถือหรือคอมพิวเตอร์เครื่องอื่นได้
+                  ระบบจะรวม Route ที่มีในเครื่องนี้กับ Cloud ของบัญชี {user.name ?? user.email ?? "คุณ"} เพื่อเปิดต่อบนมือถือหรือคอมพิวเตอร์เครื่องอื่นได้
                 </p>
                 <p className="mt-2 rounded-md bg-primary-soft p-3 text-xs font-bold leading-5 text-primary-deep">
                   ระบบจะไม่เก็บ Google API key และคุณยังเลือกเก็บไว้เฉพาะเครื่องนี้ได้ตลอดเวลา

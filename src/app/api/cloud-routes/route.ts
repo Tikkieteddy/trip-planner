@@ -1,6 +1,6 @@
-import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
-import { readCloudRoutes, writeCloudRoutes } from "@/lib/cloud-routes";
+import { auth0 } from "@/lib/auth0";
+import { readCloudRoutes, readLegacyClerkRoutes, writeCloudRoutes } from "@/lib/cloud-routes";
 import { savedRouteLibrarySchema } from "@/lib/schemas";
 import type { SavedRoute } from "@/types/trip";
 
@@ -11,11 +11,19 @@ const updateCloudRoutesSchema = z.object({
 });
 
 export async function GET() {
-  const { userId } = await auth();
+  const session = await auth0.getSession();
+  const userId = session?.user.sub;
   if (!userId) return Response.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้ Cloud Sync" }, { status: 401 });
 
   try {
-    const routes = await readCloudRoutes(userId);
+    let routes = await readCloudRoutes(userId);
+    if (routes.length === 0 && session?.user.email_verified && session.user.email) {
+      const legacy = await readLegacyClerkRoutes(session.user.email);
+      if (legacy && legacy.userId !== userId && legacy.routes.length > 0) {
+        routes = legacy.routes;
+        await writeCloudRoutes(userId, routes);
+      }
+    }
     return Response.json({ routes }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return Response.json(
@@ -26,7 +34,8 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const { userId } = await auth();
+  const session = await auth0.getSession();
+  const userId = session?.user.sub;
   if (!userId) return Response.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้ Cloud Sync" }, { status: 401 });
 
   const parsed = updateCloudRoutesSchema.safeParse(await request.json().catch(() => null));
