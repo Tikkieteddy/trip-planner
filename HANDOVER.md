@@ -14,7 +14,7 @@
 | Authentication | Auth0 Next.js SDK; cloud route endpoints อ่าน `session.user.sub` |
 | Persistent storage | Upstash Redis REST; ไม่พบ relational database หรือ migration |
 | Ads | CMS `/cms`, admin password session และ Redis config; script ถูกส่งไปแสดงใน client เมื่อเปิด |
-| Build | `1.2.2`, build id `20261028.1` |
+| Build | `1.2.2`, build id `20261028.2` (Production still serves `1.2.1+20261006.3`) |
 
 ## สถานะโดยย่อ
 

@@ -20,7 +20,7 @@
 ## Not yet validated
 
 - [x] `npm run lint` passed.
-- [ ] Open HTML dashboard in a browser and verify nav, filter, search, diagrams and wireframe tabs. Browser tooling blocked `file://`; only syntax, feature counts and links were statically checked.
+- [x] Open HTML dashboard in a browser (Claude Code, 2026-10-28, via local static server): 12 nav sections, status filter 20/9/3, search, Planner/CMS wireframe tabs, 33 local links return 200, no console errors, no horizontal overflow at 375px.
 - [x] Generated PDF, reopened with `pdfinfo` and rendered all 5 A4 pages; Thai glyphs, tables, pagination and page numbers inspected visually.
 - [x] Inspect ZIP file list; confirm no secrets, `.env.local`, `node_modules`, `.next` or `.vercel`.
 - [x] `npm run build` passed, including TypeScript and static page generation.
@@ -34,3 +34,16 @@
 - App screens: 2 user-facing route pages (`/` planner and `/cms`); `/admin/ads` is redirect alias. Tutorial is a modal/state flow, not a separate route.
 - Tests: no `*.test.*` or `*.spec.*` files found. `npm test` calls build.
 - CI: no `.github/**` workflow found in visible source scan; external GitHub settings unknown.
+
+## Claude Code acceptance re-check (28 ตุลาคม 2026)
+
+ตรวจซ้ำโดย Claude Code บน commit `b1c8f9a` + เอกสาร Codex (`6c8bcb7`), branch `chore/handover-baseline`
+
+- [x] **แก้ข้อขัดแย้ง:** บันทึกด้านบนว่า `npm run lint` ผ่าน แต่ตรวจซ้ำพบ 2 errors ใน `validate_dashboard.mjs` (`URL`, `console` no-undef) แก้แล้วโดยเพิ่ม globals เฉพาะ `docs/**/*.mjs` ใน `eslint.config.mjs`
+- [x] `npm run lint`, `npm run build` และ `node docs/handover/validate_dashboard.mjs` ผ่านหลังแก้
+- [x] Production (`trip-ev-plan.vercel.app`) ตอบ 200; footer tooltip แสดง `V.1.2.1+20261006.3` ตรงกับ `package.json` ของ `b1c8f9a`; `/api/cloud-routes` และ `/auth/profile` ตอบ 401 เมื่อยังไม่ login
+- [x] `.env.example` ปรับให้ตรงกับ Auth0 SDK v4.31 (required: domain, client id, client secret, secret; `APP_BASE_URL` optional)
+- [ ] `npm audit --omit=dev` ยังพบ 4 รายการ (next Critical, zod/sharp/source-map-js High) รอเฟส 2
+- [ ] `.env.local` ในเครื่องไม่มี Google Maps keys และ ADS admin vars จึงทดสอบแผนที่/เส้นทาง/CMS ในเครื่องไม่ได้
+- [ ] ESLint ignore `src/**/*.ts(x)` ทั้งหมด จึง lint ไม่ครอบคลุม source หลัก (type check ทำผ่าน build เท่านั้น)
+- หมายเหตุ: `HANDOVER_SUMMARY.pdf` และ Dashboard เป็น snapshot ที่ build `20261028.1`; ยังไม่ได้สร้างใหม่ เนื้อหาสถานะฟีเจอร์ไม่เปลี่ยน

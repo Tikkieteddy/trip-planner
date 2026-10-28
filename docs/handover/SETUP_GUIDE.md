@@ -19,14 +19,15 @@
 | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | Public browser | Map JS |
 | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | Public browser | Map styling/advanced marker setup |
 | `GOOGLE_MAPS_SERVER_KEY` | Server only | Places and Routes requests |
-| `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `APP_BASE_URL`, `AUTH0_SECRET` | Server | Auth0 SDK; actual required names depend on installed SDK defaults/configuration (**verify SDK docs**) |
+| `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_SECRET` | Server | Auth0 SDK v4.31 required options (verified in installed SDK `validateAndExtractRequiredOptions`) |
+| `APP_BASE_URL` | Server | Optional; SDK infers base URL from request host when unset |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Server only | Cloud routes and Ads storage |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Server only, aliases | Legacy storage variables |
 | `ADS_ADMIN_PASSWORD`, `ADS_ADMIN_SESSION_SECRET` | Server only | CMS administrator login; password >=10 chars, session secret >=32 chars |
 | `AD_SCRIPT_HTML`, `AD_SCRIPT_HTML_MOBILE`, `AD_SCRIPT_HTML_DESKTOP` | Server config, script returned to browser when enabled | Env-backed fallback for ad scripts |
 | `CLERK_SECRET_KEY` | Server only, optional legacy | Migration of prior Clerk cloud routes |
 
-The checked-in `.env.example` lists only a subset of these. Confirm the Auth0 SDK's current variable contract from package documentation and installed SDK source; no secret values are part of this handover.
+`.env.example` lists all of these names (updated 2026-10-28, build 20261028.2). No secret values are part of this handover.
 
 ## Validation / deploy
 

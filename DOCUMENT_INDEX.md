@@ -4,7 +4,7 @@
 
 | Document | จุดประสงค์ | หมวด | Path | อัปเดต | เชื่อมโยง |
 |---|---|---|---|---|---|
-| Project instructions | conventions และเริ่มทำงาน | Developer | `CLAUDE.md` | 2026-10-28 | Handover, setup |
+| Project instructions | จุดเริ่มต้นหลักของ AI agents: stack, commands, security, testing, deploy rules | Developer | `CLAUDE.md` | 2026-10-28 | Handover, setup |
 | Handover summary | ภาพรวม สถานะ ความเสี่ยง | Handover | `HANDOVER.md` | 2026-10-28 | เอกสารทั้งหมด |
 | Start here | prompt/checklist รับช่วง | Developer | `START_HERE_CLAUDE.md` | 2026-10-28 | CLAUDE, roadmap |
 | Setup guide | install/env/run/build/deploy | Operations | `docs/handover/SETUP_GUIDE.md` | 2026-10-28 | README, API |

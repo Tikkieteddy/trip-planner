@@ -13,5 +13,8 @@ pnpm-debug.log*
 
 *.tsbuildinfo
 
+# generated report copies (canonical PDF lives in docs/handover/)
+output/
+
 .vercel
 .env*.local
