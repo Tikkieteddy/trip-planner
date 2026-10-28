@@ -47,3 +47,13 @@
 - [ ] `.env.local` ในเครื่องไม่มี Google Maps keys และ ADS admin vars จึงทดสอบแผนที่/เส้นทาง/CMS ในเครื่องไม่ได้
 - [ ] ESLint ignore `src/**/*.ts(x)` ทั้งหมด จึง lint ไม่ครอบคลุม source หลัก (type check ทำผ่าน build เท่านั้น)
 - หมายเหตุ: `HANDOVER_SUMMARY.pdf` และ Dashboard เป็น snapshot ที่ build `20261028.1`; ยังไม่ได้สร้างใหม่ เนื้อหาสถานะฟีเจอร์ไม่เปลี่ยน
+
+## Phase 2 security update (28 ตุลาคม 2026, branch `fix/security-deps`)
+
+- [x] อัปเดต `next` 16.3.4 -> 16.4.3 (advisory หลายรายการถึง `<=16.4.0` รวม RCE/SSRF ใน Image Optimization ซึ่งแอปใช้จริงผ่าน `next/image` ใน `TripPlanner.tsx`), `zod` 4.4.3 -> 4.6.7, transitive `sharp` 0.35.5 และ `source-map-js` 1.2.2; lockfile เปลี่ยนเฉพาะแพ็กเกจกลุ่มนี้
+- [x] `npm audit --omit=dev`: 0 vulnerabilities
+- [x] `npm run lint` และ `npm run build` ผ่าน (TypeScript + 11 static pages)
+- [x] Local `next start` smoke test: หน้า planner และ tutorial แสดงผล, footer `V.1.2.3+20261028.3`, `/_next/image` ส่ง PNG 200 และปฏิเสธ SVG 400, `/api/routes` และ `/api/places` ตอบ 400 เมื่อ input ไม่ถูก (zod), `/api/cloud-routes` 401, `/cms` 200, `/admin/ads` redirect ไป `/cms`
+- [ ] ยังไม่ทดสอบแผนที่/เส้นทาง/Auth0 ในเครื่อง (ไม่มี Google keys ใน `.env.local`) และยังไม่ทดสอบบน Vercel Preview
+- [ ] `npm audit` (รวม dev) ยังพบ `brace-expansion` High ซึ่งเป็น dev-only ผ่าน ESLint ไม่ถูก deploy
+- หมายเหตุ: PDF/Dashboard ยังไม่ได้สร้างใหม่ เพราะเครื่องนี้ไม่มี `reportlab` และ `generate_report.py` hard-code เวอร์ชัน ควรแก้ให้อ่านจาก `package.json` ในงานถัดไป

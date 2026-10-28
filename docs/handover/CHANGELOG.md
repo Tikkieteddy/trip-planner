@@ -4,6 +4,7 @@
 
 | Date | Commit | Evidence-backed summary |
 |---|---|---|
+| 2026-10-28 | branch `fix/security-deps` | Security: next 16.3.4 -> 16.4.3, zod 4.4.3 -> 4.6.7, transitive sharp 0.35.5 and source-map-js 1.2.2; `npm audit --omit=dev` 0 vulnerabilities; version 1.2.3+20261028.3 (not deployed) |
 | 2026-10-28 | branch `chore/handover-baseline` | Claude Code baseline: fix ESLint globals for `docs/**/*.mjs`, align `.env.example` with Auth0, expand `CLAUDE.md`, ignore `output/`; build 20261028.2 (not deployed) |
 | 2026-10-28 | `6c8bcb7` | Add Codex handover documentation package; version 1.2.2+20261028.1 (not deployed) |
 | 2026-10-06 | `b1c8f9a` | Add fuel stations to nearby trip stops |
