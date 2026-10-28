@@ -1,0 +1,14 @@
+flowchart TD
+  ROOT[/ Planner /]
+  CMS[/cms Ads administration/]
+  OLD[/admin/ads/]
+  ROOT --> T[27-step tutorial modal]
+  ROOT --> MAP[Map and place search]
+  ROOT --> TRIP[Trip settings]
+  ROOT --> VEH[Vehicle profile]
+  ROOT --> FILTER[Route/charger filters]
+  ROOT --> RESULTS[Result tabs: plan, itinerary, chargers, nearby, vehicle/routes]
+  RESULTS --> SAVED[Saved routes / Cloud Sync]
+  CMS --> LOGIN[Admin password session]
+  LOGIN --> ADSET[Scripts + enabled toggle]
+  OLD -->|redirect| CMS

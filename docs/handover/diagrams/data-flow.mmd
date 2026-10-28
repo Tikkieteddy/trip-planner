@@ -1,0 +1,15 @@
+flowchart TD
+  I[ผู้ใช้ตั้งค่าทริป] --> S[TripPlanner state]
+  S -->|POST /api/routes| RH[Next.js route handler]
+  RH -->|Routes API| G[Google Routes]
+  G -->|distance, legs, polyline| RH
+  RH --> S
+  S -->|polyline / type filters| PH[POST /api/places]
+  PH -->|Places API| P[Google Places]
+  P --> PH --> S
+  S -->|vehicle settings + legs| BAT[Battery estimate]
+  BAT --> VIEW[Map / itinerary / charger list]
+  S -->|save local| LS[(Browser storage)]
+  S -->|login + Cloud Sync| AUTH[Auth0 session]
+  AUTH --> CR[/api/cloud-routes/]
+  CR --> REDIS[(Redis scoped by Auth0 sub)]
