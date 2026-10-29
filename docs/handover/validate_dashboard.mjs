@@ -28,7 +28,7 @@ const counts = Object.fromEntries(["Implemented", "Partial", "Deprecated", "NOT 
   status,
   featureCount.filter(([, value]) => value === status).length,
 ]));
-if (featureCount.length !== 20 || counts.Implemented !== 7 || counts.Partial !== 9 || counts.Deprecated !== 1 || counts["NOT FOUND"] !== 3) {
+if (featureCount.length !== 20 || counts.Implemented !== 7 || counts.Partial !== 10 || counts.Deprecated !== 1 || counts["NOT FOUND"] !== 2) {
   throw new Error(`Unexpected feature inventory: ${JSON.stringify(counts)}`);
 }
 
