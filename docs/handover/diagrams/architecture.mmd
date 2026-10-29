@@ -1,0 +1,11 @@
+flowchart LR
+  U[ผู้ใช้] --> B[Browser: React UI + Google Maps JS]
+  B -->|Auth0 login/session| A[Auth0]
+  B -->|JSON HTTPS| N[Next.js App Router / Vercel]
+  N -->|server key| P[Google Places API New]
+  N -->|server key| R[Google Routes API]
+  N -->|session subject scoped key| K[(Upstash Redis REST)]
+  B -->|restricted public browser key| M[Google Maps JavaScript API]
+  K --> CR[Cloud route library]
+  K --> ADS[Ads config]
+  N -->|public enabled scripts| B

@@ -22,4 +22,13 @@ export default [
       },
     },
   },
+  {
+    files: ["docs/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        URL: "readonly",
+        console: "readonly",
+      },
+    },
+  },
 ];
