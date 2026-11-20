@@ -90,6 +90,7 @@ Request flow: browser -> `/api/*` route handler -> zod validation -> Google (ser
 ## Deployment Rules
 
 - Work on feature branches; never commit directly to `main`.
+- Always use GitHub account **Tikkieteddy** for this repo (git and `gh`), never another logged-in account. The repo-local credential helper handles git; prefix `gh` commands with `GH_TOKEN="$(gh auth token --user Tikkieteddy)"`. Pushing `.github/workflows/*` needs the `workflow` scope on that token.
 - Never deploy to Production, push, force-push, rewrite history, or change the Git remote without explicit owner approval.
 - Merging into `main` may auto-deploy on Vercel - treat a merge as a Production deploy.
 - Use Vercel Preview for verification. Do not claim a deploy succeeded without evidence (live footer tooltip version or Vercel dashboard).
