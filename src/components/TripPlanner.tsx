@@ -585,7 +585,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     if (["setup-vehicle-tab", "vehicle-profile"].includes(id)) setActiveSetupPanel("vehicle");
     if (["setup-filters-tab", "filter-settings"].includes(id)) setActiveSetupPanel("filters");
 
-    if (["results-menu", "route-panel"].includes(id)) setActivePanel("route");
+    if (["results-menu", "route-panel", "overnight-button", "day-tabs"].includes(id)) setActivePanel("route");
+    if (id === "overnight-button" || id === "day-tabs") setSelectedDay(null);
     if (id === "itinerary-panel") setActivePanel("itinerary");
     if (id === "chargers-panel") setActivePanel("chargers");
     if (id === "nearby-panel") setActivePanel("nearby");
@@ -2271,6 +2272,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                         </div>
                         <div className="flex shrink-0 gap-1">
                           <button
+                            data-tour={index === 0 ? "overnight-button" : undefined}
                             type="button"
                             onClick={() => toggleWaypointOvernight(index)}
                             aria-pressed={Boolean(place.overnight)}
@@ -2325,6 +2327,16 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     <p className="rounded-lg border border-dashed border-border p-3 text-sm font-bold text-muted">ยังไม่ได้เลือกปลายทาง</p>
                   )}
                 </div>
+                {activeDay === null && dayCount === 1 ? (
+                  <p className="mt-3 flex items-start gap-2 rounded-lg border border-dashed border-primary/30 bg-primary-soft/30 p-2.5 text-xs font-semibold leading-5 text-primary-deep">
+                    <BedDouble className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                    <span>
+                      {waypoints.length > 0
+                        ? "อยากแบ่งเป็นหลายวัน? กดปุ่มรูปเตียงที่จุดแวะที่จะพักค้างคืน วันถัดไปจะเริ่มจากจุดนั้น"
+                        : "อยากแบ่งเป็นหลายวัน? เพิ่มจุดแวะที่จะพักค้างคืน (เช่น โรงแรม) แล้วกดปุ่มรูปเตียงที่จุดนั้น"}
+                    </span>
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => void calculateRoute()}
