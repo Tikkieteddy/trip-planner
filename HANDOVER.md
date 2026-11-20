@@ -19,7 +19,7 @@
 ## สถานะโดยย่อ
 
 - **Implemented (source verified):** planner, route calculation, EV charger search along route, EV Station PluZ provider query, charging filters/sort, battery estimate, nearby categories, user route library/Cloud Sync, tutorial, CMS ads toggle/config, ttdLab footer.
-- **Partial / requires service verification:** Auth0 login and production callbacks; Google billing/quota and actual route/charger results; Redis connectivity and cross-device sync; CMS credentials/config; ad vendor policy and script behavior.
+- **Partial / requires service verification:** Auth0 login and Cloud Sync work on Production (live test 2026-11-20: login, read, sync, logout); still unverified: second device and cross-user isolation; Google billing/quota and actual route/charger results; Redis connectivity and cross-device sync; CMS credentials/config; ad vendor policy and script behavior.
 - **NOT VERIFIED:** current Vercel production deployment and env values, external-service credentials/quotas, real-account data migration from legacy Clerk, exact feature behavior on physical phones, every station brand/coverage.
 - **NOT FOUND:** SQL/ORM schema, migrations, end-to-end/UI test suite, repository issue tracker state. Absence is based on current repo search, not proof that no external setup exists.
 

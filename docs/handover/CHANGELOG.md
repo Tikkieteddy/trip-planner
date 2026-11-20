@@ -4,6 +4,7 @@
 
 | Date | Commit | Evidence-backed summary |
 |---|---|---|
+| 2026-11-20 | branch `docs/auth0-cloud-sync-live-test` | Docs: record Production live test of Auth0 login, cloud route read/sync and logout (V.1.2.6+20261120.2); no app code change |
 | 2026-11-20 | branch `ci/github-actions` | Add GitHub Actions CI (`.github/workflows/ci.yml`): Node 24, `npm ci` + `npm run check` on PRs and pushes to `main`, read-only token; version 1.2.6+20261120.2 |
 | 2026-11-20 | branch `fix/next-16.4.6` | Security: next 16.4.3 -> 16.4.6 (7 moderate advisories up to 16.4.4, incl. SVG rejection bypass in image optimization); `npm audit --omit=dev` 0 vulnerabilities; version 1.2.5+20261120.1 (not deployed) |
 | 2026-10-29 | branch `test/vitest-suite` | Add Vitest 5 suite (60 tests: schemas, polyline, battery, format, Google client, cloud-routes/routes/places/admin-login handlers with mocked services); `npm test` runs Vitest, new `npm run check`; version 1.2.4+20261029.1 (not deployed) |

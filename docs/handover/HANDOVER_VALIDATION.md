@@ -79,3 +79,16 @@
 - [x] เพิ่ม `.github/workflows/ci.yml`: Node 24 (ตรงกับ Vercel), `npm ci` แล้ว `npm run check` ทุก PR และทุก push เข้า `main`; `permissions: contents: read`; ไม่ใช้ secrets
 - [x] Production ก่อนงานนี้: footer `V.1.2.5+20261120.1`, Vercel Ready, endpoint หลักตอบตามคาด
 - [ ] ยังไม่ได้ตั้ง branch protection ให้ CI เป็น required check (ต้องตั้งใน GitHub settings โดยเจ้าของ)
+
+## Auth0 + Cloud Sync live test (20 พฤศจิกายน 2026, Production `V.1.2.6+20261120.2`)
+
+ทดสอบบน Production ด้วยบัญชีจริงของเจ้าของ (Google login ผ่าน Auth0) ใน browser ที่ยังไม่เคย login; ไม่บันทึกข้อมูลบัญชีหรือเนื้อหา route ในเอกสาร
+
+- [x] ก่อน login: `/auth/profile` 401; `/auth/login?returnTo=%2F` redirect ไปหน้า Universal Login ของ Auth0 tenant `tikkie-trip-auth`
+- [x] login (Google) แล้ว redirect กลับ `/`; `/auth/profile` 200, `sub` เป็น `google-oauth2|…`, `email_verified: true`
+- [x] `GET /api/cloud-routes` 200 คืน route ที่เคยบันทึกไว้ใน Cloud (Upstash Redis ใช้งานได้บน Production)
+- [x] หลัง login แอปรวม route จาก Cloud กับเครื่องอัตโนมัติ (GET + PUT 200) ข้อความ "เปิด Cloud Sync และรวม Route ของคุณแล้ว"
+- [x] กด "ซิงก์ตอนนี้": GET + PUT `/api/cloud-routes` 200, ข้อความ "ซิงก์ Route ล่าสุดกับ Cloud แล้ว", จำนวน route คงเดิม (ไม่มีข้อมูลหาย/ซ้ำ)
+- [x] `/auth/logout` แล้ว `/auth/profile` และ `/api/cloud-routes` กลับเป็น 401; route ในเครื่อง (localStorage) ยังอยู่ และหน้าเว็บแสดงลิงก์เข้าสู่ระบบ
+- [ ] ยังไม่ได้ทดสอบ: บันทึก route ใหม่ (ต้องคำนวณเส้นทางผ่าน Google ซึ่งมีค่าใช้จ่าย), sync ข้ามอุปกรณ์เครื่องที่สอง, การกันข้อมูลข้ามผู้ใช้ด้วยบัญชีที่สอง, legacy Clerk migration
+- หมายเหตุ: Claude in Chrome คลิก/รันสคริปต์ไม่ได้เพราะ extension อื่นแทรกหน้าเว็บ จึงทดสอบใน browser ของแอป Claude แทน
