@@ -1600,38 +1600,74 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
   return (
     <main className="min-h-dvh overflow-x-hidden bg-background">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/90 text-primary-deep shadow-sm backdrop-blur-xl">
-        <div className="relative mx-auto flex max-w-[1800px] flex-col gap-2 px-3 py-2.5 sm:px-4 lg:px-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex min-w-[170px] flex-1 items-center gap-2 sm:min-w-[220px]">
-              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-white shadow-sm">
-                <MapPinned className="size-6" aria-hidden="true" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase leading-none text-secondary">Tikkie Travel</p>
-                <h1 className="truncate text-lg font-black leading-tight tracking-normal sm:text-xl">Tikkie Trip – EV Planner</h1>
-              </div>
+      <header className="sticky top-0 z-40 text-primary-deep shadow-md">
+        <div className="relative isolate overflow-hidden bg-primary">
+          <Image src="/road-hero.png" alt="" fill priority sizes="100vw" className="object-cover object-center" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(3,55,45,0.95)_0%,rgba(3,55,45,0.8)_55%,rgba(3,55,45,0.65)_100%)]" />
+          <div className="relative mx-auto flex max-w-[1800px] flex-wrap items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 lg:px-6">
+            <div className="flex min-w-0 flex-1 items-center gap-2 xl:flex-none">
+              <Image src="/ttdlab-logo.png" alt="ttdLab" width={40} height={40} priority className="size-10 shrink-0 rounded-xl shadow-sm" />
+              <h1 className="truncate text-lg font-black leading-tight tracking-normal text-white sm:text-xl">EV Planner</h1>
             </div>
 
-            <div data-tour="header-summary" className="trip-scrollbar hidden min-w-0 flex-1 gap-2 overflow-x-auto xl:flex xl:flex-none xl:justify-center">
-              <button type="button" onClick={() => setSummaryDetail((current) => (current === "distance" ? null : "distance"))} aria-expanded={summaryDetail === "distance"} title="อธิบายระยะทางรวม" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-container px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-secondary-container">
-                <Navigation className="size-4 text-cyan-deep" aria-hidden="true" />
-                ระยะทาง
-                <strong className="text-sm">{displayRoute ? formatDistance(displayRoute.distanceMeters) : "รอคำนวณ"}</strong>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSetupPanel("trip");
+                setLeftPanelCollapsed(false);
+                document.getElementById("planner-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              title="ไปยังแบบฟอร์มตั้งค่าทริป"
+              aria-label="เริ่มวางแผนทริป"
+              className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl bg-secondary-container px-2 text-sm font-black text-primary hover:bg-white sm:px-3"
+            >
+              <MapPinned className="size-4" aria-hidden="true" />
+              <span className="hidden sm:inline">เริ่มวางแผนทริป</span>
+            </button>
+
+            <div data-tour="hero-summary" className="order-last grid w-full grid-cols-3 divide-x divide-border overflow-hidden rounded-xl border border-white/60 bg-white/90 text-primary-deep shadow-sm backdrop-blur xl:order-none xl:w-auto xl:min-w-0 xl:max-w-3xl xl:flex-1">
+              <button
+                type="button"
+                onClick={() => setSummaryDetail((current) => (current === "distance" ? null : "distance"))}
+                aria-expanded={summaryDetail === "distance"}
+                title="อธิบายระยะทางรวม"
+                className="flex min-w-0 items-center gap-2 px-2 py-1.5 text-left hover:bg-secondary-container sm:px-3"
+              >
+                <Navigation className="size-4 shrink-0 text-secondary" aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-bold text-muted sm:text-xs">ระยะทาง</span>
+                  <span className="block truncate text-xs font-black sm:text-sm">{displayRoute ? formatDistance(displayRoute.distanceMeters) : "รอคำนวณ"}</span>
+                </span>
               </button>
-              <button type="button" onClick={() => setSummaryDetail((current) => (current === "duration" ? null : "duration"))} aria-expanded={summaryDetail === "duration"} title="อธิบายเวลาเดินทาง" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-container px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-secondary-container">
-                <CalendarClock className="size-4 text-cyan-deep" aria-hidden="true" />
-                เวลา
-                <strong className="text-sm">{displayRoute ? formatDuration(displayRoute.duration) : "รอคำนวณ"}</strong>
+              <button
+                type="button"
+                onClick={() => setSummaryDetail((current) => (current === "duration" ? null : "duration"))}
+                aria-expanded={summaryDetail === "duration"}
+                title="อธิบายเวลาเดินทาง"
+                className="flex min-w-0 items-center gap-2 px-2 py-1.5 text-left hover:bg-secondary-container sm:px-3"
+              >
+                <CalendarClock className="size-4 shrink-0 text-secondary" aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-bold text-muted sm:text-xs">เวลาเดินทาง</span>
+                  <span className="block truncate text-xs font-black sm:text-sm">{displayRoute ? formatDuration(displayRoute.duration) : "รอคำนวณ"}</span>
+                </span>
               </button>
-              <button type="button" onClick={() => setSummaryDetail((current) => (current === "battery" ? null : "battery"))} aria-expanded={summaryDetail === "battery"} title="อธิบายการประเมินแบตเตอรี่" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-container px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-secondary-container">
-                <BatteryCharging className="size-4 text-cyan-deep" aria-hidden="true" />
-                แบต
-                <strong className="max-w-40 truncate text-sm">{estimates.length ? batterySummaryText(estimates) : "ยังไม่ประเมิน"}</strong>
+              <button
+                type="button"
+                onClick={() => setSummaryDetail((current) => (current === "battery" ? null : "battery"))}
+                aria-expanded={summaryDetail === "battery"}
+                title="อธิบายการประเมินแบตเตอรี่"
+                className="flex min-w-0 items-center gap-2 px-2 py-1.5 text-left hover:bg-secondary-container sm:px-3"
+              >
+                <BatteryCharging className="size-4 shrink-0 text-secondary" aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-bold text-muted sm:text-xs">แบตเตอรี่</span>
+                  <span className="block truncate text-xs font-black sm:text-sm">{estimates.length ? batterySummaryText(estimates) : "รอประเมิน"}</span>
+                </span>
               </button>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-2">
               {!isAuthLoaded ? (
                 <span className="inline-flex min-h-10 items-center rounded-xl border border-border bg-surface-container-low px-3 text-xs font-black text-muted">กำลังตรวจบัญชี</span>
               ) : !isSignedIn ? (
@@ -1671,6 +1707,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               </button>
             </div>
           </div>
+        </div>
           {summaryExplanation ? (
             <section role="status" className="absolute left-3 right-3 top-full z-30 mt-1 rounded-xl border border-border bg-white p-3 text-primary-deep shadow-xl sm:left-auto sm:right-4 sm:w-[380px]">
               <div className="flex items-start gap-3">
@@ -1683,53 +1720,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               </div>
             </section>
           ) : null}
-        </div>
       </header>
 
-      <section className="relative mx-auto mt-3 w-full max-w-[1800px] px-3 sm:px-4 lg:px-6" aria-label="สรุปทริป">
-        <div className="relative isolate overflow-hidden rounded-2xl bg-primary shadow-lg">
-          <Image src="/road-hero.png" alt="ถนนคดเคี้ยวผ่านหุบเขาเขียวในแสงเช้า" fill priority sizes="100vw" className="object-cover object-center" />
-          <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(3,55,45,0.95)_0%,rgba(3,55,45,0.65)_50%,rgba(3,55,45,0.40)_100%)]" />
-          <div className="relative flex flex-col gap-2 p-3 text-white sm:flex-row sm:items-stretch sm:gap-3 sm:p-4 lg:p-5">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveSetupPanel("trip");
-                  document.getElementById("planner-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-                title="ไปยังแบบฟอร์มตั้งค่าทริป"
-                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-secondary-container px-4 text-sm font-black text-primary hover:bg-white"
-              >
-                <Navigation className="size-4" aria-hidden="true" />
-                เริ่มวางแผนทริป
-              </button>
-            <div data-tour="hero-summary" className="grid min-w-0 flex-1 grid-cols-3 gap-2 rounded-xl border border-white/60 bg-white/90 p-2 text-primary-deep shadow-sm backdrop-blur sm:max-w-3xl sm:gap-3 sm:p-3">
-              <div className="flex min-w-0 items-center gap-2 px-1 sm:px-2">
-                <Navigation className="size-4 shrink-0 text-secondary" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold text-muted sm:text-xs">ระยะทาง</p>
-                  <p className="truncate text-xs font-black sm:text-sm">{displayRoute ? formatDistance(displayRoute.distanceMeters) : "รอคำนวณ"}</p>
-                </div>
-              </div>
-              <div className="flex min-w-0 items-center gap-2 border-x border-border px-2 sm:px-3">
-                <CalendarClock className="size-4 shrink-0 text-secondary" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold text-muted sm:text-xs">เวลาเดินทาง</p>
-                  <p className="truncate text-xs font-black sm:text-sm">{displayRoute ? formatDuration(displayRoute.duration) : "รอคำนวณ"}</p>
-                </div>
-              </div>
-              <div className="flex min-w-0 items-center gap-2 px-1 sm:px-2">
-                <BatteryCharging className="size-4 shrink-0 text-secondary" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold text-muted sm:text-xs">แบตเตอรี่</p>
-                  <p className="truncate text-xs font-black sm:text-sm">{estimates.length ? batterySummaryText(estimates) : "รอประเมิน"}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <section className="mx-auto w-full max-w-[1800px] px-3 sm:px-4 lg:px-6" aria-label="เลือกดูรายวัน">
         {dayCount > 1 ? (
-          <nav data-tour="day-tabs" aria-label="เลือกดูรายวัน" className="mt-2 flex gap-2 overflow-x-auto pb-1">
+          <nav data-tour="day-tabs" aria-label="เลือกดูรายวัน" className="mt-3 flex gap-2 overflow-x-auto pb-1">
             <button
               type="button"
               aria-pressed={activeDay === null}
