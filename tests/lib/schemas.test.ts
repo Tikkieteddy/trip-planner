@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { placesRequestSchema, routeRequestSchema, savedRouteLibrarySchema, tripSettingsSchema } from "@/lib/schemas";
+import { curatedChargers } from "@/data/curated-chargers";
+import { dayPlanSchema, placesRequestSchema, routeRequestSchema, savedRouteLibrarySchema, savedTripSchema, tripSettingsSchema } from "@/lib/schemas";
 import { bangkok, huaHin, place, savedRoute, settings } from "../fixtures";
 
 describe("routeRequestSchema", () => {
@@ -57,5 +58,28 @@ describe("trip settings and saved routes", () => {
 
   it("rejects saved routes with blank names", () => {
     expect(savedRouteLibrarySchema.safeParse([{ ...savedRoute("a"), name: "   " }]).success).toBe(false);
+  });
+});
+
+describe("multi-day saved trips", () => {
+  const route = {
+    distanceMeters: 1000,
+    duration: "600s",
+    encodedPolyline: "_p~iF~ps|U_ulLnnqC",
+    legs: [{ distanceMeters: 1000, duration: "600s" }],
+    optimizedWaypointOrder: [],
+    warnings: [],
+  };
+  const chargers = (count: number) =>
+    Array.from({ length: count }, (_, index) => place(`c${index}`, 13.8, 100.3, { source: index % 2 ? "curated" : "google" }));
+
+  it("saves a day with Google results plus every curated station", () => {
+    const day = { stops: [bangkok, huaHin], route, chargers: chargers(20 + curatedChargers.length) };
+    expect(dayPlanSchema.safeParse(day).success).toBe(true);
+  });
+
+  it("saves a 14-day trip whose days each hit the Google limit plus curated stations", () => {
+    const trip = { ...savedRoute("multi"), chargers: chargers(14 * 20 + curatedChargers.length) };
+    expect(savedTripSchema.safeParse(trip).success).toBe(true);
   });
 });
