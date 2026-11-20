@@ -90,6 +90,7 @@ Request flow: browser -> `/api/*` route handler -> zod validation -> Google (ser
 ## Deployment Rules
 
 - Work on feature branches; never commit directly to `main`.
+- Always use GitHub account **Tikkieteddy** for this repo (git and `gh`), never another logged-in account. The repo-local credential helper handles git; prefix `gh` commands with `GH_TOKEN="$(gh auth token --user Tikkieteddy)"`. Pushing `.github/workflows/*` needs the `workflow` scope on that token.
 - Never deploy to Production, push, force-push, rewrite history, or change the Git remote without explicit owner approval.
 - Merging into `main` may auto-deploy on Vercel - treat a merge as a Production deploy.
 - Use Vercel Preview for verification. Do not claim a deploy succeeded without evidence (live footer tooltip version or Vercel dashboard).
@@ -104,7 +105,7 @@ Request flow: browser -> `/api/*` route handler -> zod validation -> Google (ser
 
 - Battery figures are estimates from distance and user-entered km/kWh, not vehicle telemetry or a guaranteed range.
 - Charger data comes from Google Places; no real-time connector availability.
-- Tests cover libs and API handlers only: no UI/component or end-to-end tests, and no CI workflow in the repo.
+- Tests cover libs and API handlers only: no UI/component or end-to-end tests. CI (`.github/workflows/ci.yml`) runs `npm run check` on every PR and push to `main`; branch protection is not configured.
 - ESLint ignores `src/**/*.ts(x)`; TypeScript errors are caught only by `npm run build`.
 - Auth0, Redis, Google quotas and Vercel env values are not verified end-to-end.
 - Legacy Clerk migration path in `cloud-routes.ts` is unverified with real accounts.

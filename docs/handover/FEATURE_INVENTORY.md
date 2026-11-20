@@ -2,7 +2,7 @@
 
 อัปเดต 28 ตุลาคม 2026. Status combines source inspection, existing `SYSTEM-FEATURE-CHECKLIST.md`, and commands run in this handover. It does not imply all live integrations were tested.
 
-สรุปผลตรวจ 20 รายการ: **Implemented 7 · Partial 10 · Deprecated 1 · NOT FOUND 2**. คำว่า Implemented หมายถึงพบโค้ดใน source ไม่ได้ยืนยันว่าบริการภายนอกหรือ workflow จริงผ่านการทดสอบครบแล้ว.
+สรุปผลตรวจ 20 รายการ: **Implemented 8 · Partial 10 · Deprecated 1 · NOT FOUND 1**. คำว่า Implemented หมายถึงพบโค้ดใน source ไม่ได้ยืนยันว่าบริการภายนอกหรือ workflow จริงผ่านการทดสอบครบแล้ว.
 
 | Feature | Module / source | Status | Dependencies | Known gaps / next check | Priority |
 |---|---|---|---|---|---|
@@ -24,7 +24,7 @@
 | Responsive ttdLab footer/version tooltip | `CreditFooter.tsx`, `version.ts` | Implemented in source | package metadata | Keyboard/touch QA remains external | P2 |
 | Daily itinerary by selected days | removed per checklist/tutorial | Deprecated / not implemented | - | Do not claim number of days creates day plans | - |
 | Unit/integration/e2e test suite | `tests/`, `vitest.config.ts` | Partial | Vitest | Libs + API handlers covered with mocked services; no UI/e2e tests | P1 |
-| CI workflow | repo search | NOT FOUND | GitHub configuration may exist outside repo | Inspect GitHub settings if permitted | P2 |
+| CI workflow | `.github/workflows/ci.yml` | Implemented | GitHub Actions | Runs `npm run check` on PRs and `main`; branch protection not configured | P2 |
 | SQL/ORM database and migrations | repo search | NOT FOUND | Redis is current persistence | No relational schema in source | - |
 
 ## Status definitions

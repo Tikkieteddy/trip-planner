@@ -1,6 +1,6 @@
 # Handover: Tikkie Trip – EV Planner
 
-อัปเดต 20 พฤศจิกายน 2026 | Version 1.2.5 | Git branch `main`
+อัปเดต 20 พฤศจิกายน 2026 | Version 1.2.6 | Git branch `main`
 
 ## Executive Summary
 
@@ -14,14 +14,14 @@
 | Authentication | Auth0 Next.js SDK; cloud route endpoints อ่าน `session.user.sub` |
 | Persistent storage | Upstash Redis REST; ไม่พบ relational database หรือ migration |
 | Ads | CMS `/cms`, admin password session และ Redis config; script ถูกส่งไปแสดงใน client เมื่อเปิด |
-| Build | `1.2.5`, build id `20261120.1` (Production serves `1.2.3+20261028.3`, verified 20 Nov 2026) |
+| Build | `1.2.6`, build id `20261120.2` (Production serves `1.2.5+20261120.1`, verified 20 Nov 2026) |
 
 ## สถานะโดยย่อ
 
 - **Implemented (source verified):** planner, route calculation, EV charger search along route, EV Station PluZ provider query, charging filters/sort, battery estimate, nearby categories, user route library/Cloud Sync, tutorial, CMS ads toggle/config, ttdLab footer.
 - **Partial / requires service verification:** Auth0 login and production callbacks; Google billing/quota and actual route/charger results; Redis connectivity and cross-device sync; CMS credentials/config; ad vendor policy and script behavior.
 - **NOT VERIFIED:** current Vercel production deployment and env values, external-service credentials/quotas, real-account data migration from legacy Clerk, exact feature behavior on physical phones, every station brand/coverage.
-- **NOT FOUND:** SQL/ORM schema, migrations, end-to-end/UI test suite, CI workflow files, repository issue tracker state. Absence is based on current repo search, not proof that no external setup exists.
+- **NOT FOUND:** SQL/ORM schema, migrations, end-to-end/UI test suite, repository issue tracker state. Absence is based on current repo search, not proof that no external setup exists.
 
 ## Repository State
 
