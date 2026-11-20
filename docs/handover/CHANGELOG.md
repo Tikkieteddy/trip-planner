@@ -4,6 +4,8 @@
 
 | Date | Commit | Evidence-backed summary |
 |---|---|---|
+| 2026-11-20 | branch `feature/unified-header` | Curated chargers: 50 hand-checked stations (Salaya/Sala Klang, Lopburi Tha Luang + Mueang, Phetchabun Mueang) in `src/data/curated-chargers.ts`, merged into route charger results within 3 km of the route or 20 km of a stop, de-duplicated against Google results, filters respected, badge "ข้อมูลสำรวจเอง"; place source `curated`; version 1.6.0+20261120.7 |
+| 2026-11-20 | branch `feature/unified-header` | One green header bar (header + hero merged), single trip summary, title "EV Planner", ttdLab logo; version 1.5.0+20261120.6 |
 | 2026-11-20 | branch `feature/collapsible-panels` | Left/right side panels fold into icon rails on desktop so the map fills the space; state remembered per browser; version 1.4.0+20261120.5 |
 | 2026-11-20 | branch `docs/multi-day-live-test` | Docs: record Production live test of a 2-day trip (per-day routes, charger spread, kW display); no app code change |
 | 2026-11-20 | branch `feature/multi-day` | Multi-day trips: overnight stops split days (max 14), per-day Routes + charger search, day tabs for summary/map/itinerary/chargers/battery, daily summary, saved/shared with day split; version 1.3.0+20261120.4 |

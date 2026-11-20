@@ -3,7 +3,7 @@ export type LatLng = {
   longitude: number;
 };
 
-export type PlaceSource = "google" | "map_click";
+export type PlaceSource = "google" | "map_click" | "curated";
 
 export type EVConnectorType =
   | "EV_CONNECTOR_TYPE_CCS_COMBO_2"
