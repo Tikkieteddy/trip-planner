@@ -17,7 +17,7 @@
 | Nearby categories incl. fuel/rest stop | `place-types.ts`, planner, Places nearby | Implemented in source | Google Places | Store/brand coverage varies; verify PTT in chosen area | P1 |
 | Battery profile and per-leg estimate | `lib/battery.ts`, planner | Implemented in source | user-provided vehicle inputs | Not vehicle telemetry; test edge cases | P2 |
 | Route local save/import/export/share | planner, schemas | Implemented in source | Auth0 gate for actions | Browser persistence and share round-trip | P1 |
-| Cloud Sync | `/api/cloud-routes`, `cloud-routes.ts` | Partial / service-dependent | Auth0 + Upstash Redis | Confirm Production env, account isolation, second device | P1 |
+| Cloud Sync | `/api/cloud-routes`, `cloud-routes.ts` | Partial / service-dependent | Auth0 + Upstash Redis | Production login, read, sync and logout verified live 2026-11-20; second device and cross-user isolation still untested | P1 |
 | Clerk legacy route migration | `cloud-routes.ts` | Partial / optional legacy path | Clerk secret + verified email + Redis | Migration is not verified with real accounts | P3 |
 | First-use tutorial | `TutorialGuide.tsx` | Implemented in source | browser storage | 27-step spotlight QA on physical phone | P2 |
 | CMS login and Ads enable/disable | `/cms`, `/api/admin/*`, `admin-auth.ts` | Implemented in source | Admin env + optional Redis | Security review, provider approval, live test | P3, last |
