@@ -23,6 +23,7 @@
 - **Dependencies:** test runner decision; currently no test framework found.
 - **Acceptance:** tests cover schema bounds, same-point routes, polyline segmentation, battery edge cases, auth-required cloud access and failure states.
 - **Verify:** dedicated `npm test` runs tests, not merely `next build`.
+- **Status (2026-10-29):** done for libs and API handlers (60 Vitest tests); UI/e2e coverage still open.
 
 ### Nearby places quality
 - **Files:** `src/data/place-types.ts`, `/api/places`, nearby UI.

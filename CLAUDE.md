@@ -46,7 +46,8 @@ npm ci
 npm run dev      # http://127.0.0.1:3000
 npm run lint     # ESLint (JS/MJS only - see Known Limitations)
 npm run build    # includes TypeScript type check
-npm test         # currently runs build only; no unit tests yet
+npm test         # Vitest unit + API handler tests (tests/**/*.test.ts)
+npm run check    # lint + test + build (run before every commit)
 node docs/handover/validate_dashboard.mjs
 ```
 
@@ -81,8 +82,8 @@ Request flow: browser -> `/api/*` route handler -> zod validation -> Google (ser
 
 ## Testing Requirements
 
-- Before any commit: `npm run lint` and `npm run build` must pass.
-- Add tests for changed logic once a test runner exists (planned: Vitest for schemas, polyline, battery, API handlers with mocked services).
+- Before any commit: `npm run check` (lint + test + build) must pass.
+- Tests live in `tests/` (Vitest, node env, `@/` alias). Add or update tests for every changed module; API handlers are tested by mocking `@/lib/auth0`, `@/lib/cloud-routes` and `@/lib/google` with `vi.hoisted` + `vi.mock`.
 - Do not call billable Google APIs in automated tests.
 - Record results in `docs/handover/HANDOVER_VALIDATION.md`.
 
@@ -103,7 +104,7 @@ Request flow: browser -> `/api/*` route handler -> zod validation -> Google (ser
 
 - Battery figures are estimates from distance and user-entered km/kWh, not vehicle telemetry or a guaranteed range.
 - Charger data comes from Google Places; no real-time connector availability.
-- No automated test suite and no CI workflow in the repo.
+- Tests cover libs and API handlers only: no UI/component or end-to-end tests, and no CI workflow in the repo.
 - ESLint ignores `src/**/*.ts(x)`; TypeScript errors are caught only by `npm run build`.
 - Auth0, Redis, Google quotas and Vercel env values are not verified end-to-end.
 - Legacy Clerk migration path in `cloud-routes.ts` is unverified with real accounts.

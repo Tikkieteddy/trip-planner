@@ -34,7 +34,8 @@
 ```bash
 npm run lint
 npm run build
-npm test # currently same as build, not unit tests
+npm test       # Vitest unit + API handler tests
+npm run check  # lint + test + build
 ```
 
 Production hosting target: Vercel project `trip-planner`, domain `https://trip-ev-plan.vercel.app`. Deployment settings, current aliases, env values and latest successful deployment are **NOT VERIFIED** in this handover. No deploy is performed by these instructions.

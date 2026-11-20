@@ -1,7 +1,7 @@
 {
   "name": "trip-planner",
-  "version": "1.2.3",
-  "build": "20261028.3",
+  "version": "1.2.4",
+  "build": "20261029.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,9 @@
     "start": "next start --hostname 127.0.0.1",
     "preview": "next start --hostname 127.0.0.1",
     "lint": "eslint .",
-    "test": "npm run build"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run lint && npm test && npm run build"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.31.0",
@@ -29,6 +31,7 @@
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.1",
     "tailwindcss": "4.1.18",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
   }
 }

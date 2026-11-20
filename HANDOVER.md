@@ -1,6 +1,6 @@
 # Handover: Tikkie Trip – EV Planner
 
-อัปเดต 28 ตุลาคม 2026 | Version 1.2.3 | Git branch `main`
+อัปเดต 29 ตุลาคม 2026 | Version 1.2.4 | Git branch `main`
 
 ## Executive Summary
 
@@ -14,14 +14,14 @@
 | Authentication | Auth0 Next.js SDK; cloud route endpoints อ่าน `session.user.sub` |
 | Persistent storage | Upstash Redis REST; ไม่พบ relational database หรือ migration |
 | Ads | CMS `/cms`, admin password session และ Redis config; script ถูกส่งไปแสดงใน client เมื่อเปิด |
-| Build | `1.2.3`, build id `20261028.3` (Production still serves `1.2.1+20261006.3`) |
+| Build | `1.2.4`, build id `20261029.1` (Production still serves `1.2.1+20261006.3`) |
 
 ## สถานะโดยย่อ
 
 - **Implemented (source verified):** planner, route calculation, EV charger search along route, EV Station PluZ provider query, charging filters/sort, battery estimate, nearby categories, user route library/Cloud Sync, tutorial, CMS ads toggle/config, ttdLab footer.
 - **Partial / requires service verification:** Auth0 login and production callbacks; Google billing/quota and actual route/charger results; Redis connectivity and cross-device sync; CMS credentials/config; ad vendor policy and script behavior.
 - **NOT VERIFIED:** current Vercel production deployment and env values, external-service credentials/quotas, real-account data migration from legacy Clerk, exact feature behavior on physical phones, every station brand/coverage.
-- **NOT FOUND:** SQL/ORM schema, migrations, automated unit/e2e test suite, CI workflow files, repository issue tracker state. Absence is based on current repo search, not proof that no external setup exists.
+- **NOT FOUND:** SQL/ORM schema, migrations, end-to-end/UI test suite, CI workflow files, repository issue tracker state. Absence is based on current repo search, not proof that no external setup exists.
 
 ## Repository State
 
@@ -42,7 +42,7 @@ Repository: `Tikkieteddy/trip-planner`; branch `main`. This handover task does n
 - Cloud routes are keyed by Auth0 subject. Redis absence returns service errors; legacy Clerk migration code requires a verified email and Clerk secret.
 - Ads HTML/JS is privileged executable third-party content. Only trusted admin may configure it; validate provider policy, CSP, consent and supply-chain before enabling.
 - Battery values are estimates and not a guarantee of reachable range or charger availability.
-- `npm test` currently aliases `npm run build`; it is not a unit test suite.
+- `npm test` runs Vitest unit + API handler tests (mocked services); there are no UI or end-to-end tests yet.
 
 ## Detailed Materials
 

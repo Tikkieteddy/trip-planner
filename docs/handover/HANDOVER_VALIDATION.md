@@ -57,3 +57,12 @@
 - [ ] ยังไม่ทดสอบแผนที่/เส้นทาง/Auth0 ในเครื่อง (ไม่มี Google keys ใน `.env.local`) และยังไม่ทดสอบบน Vercel Preview
 - [ ] `npm audit` (รวม dev) ยังพบ `brace-expansion` High ซึ่งเป็น dev-only ผ่าน ESLint ไม่ถูก deploy
 - หมายเหตุ: PDF/Dashboard ยังไม่ได้สร้างใหม่ เพราะเครื่องนี้ไม่มี `reportlab` และ `generate_report.py` hard-code เวอร์ชัน ควรแก้ให้อ่านจาก `package.json` ในงานถัดไป
+
+## Phase 3 test suite (29 ตุลาคม 2026, branch `test/vitest-suite`)
+
+- [x] เพิ่ม Vitest 5.0.5 (devDependency, pinned) และ `vitest.config.ts` (node env, `@/` alias, unstub env/globals ทุกเทสต์)
+- [x] 60 tests ใน 9 ไฟล์: `tests/lib` (schemas, polyline รวม reference ของ Google และขีดจำกัด 20,000 ตัวอักษร, battery, format, Google client) และ `tests/api` (cloud-routes, routes, places, admin login)
+- [x] Handler tests mock `@/lib/auth0`, `@/lib/cloud-routes`, `@/lib/google` และ `fetch` ไม่มีการเรียก Google/Redis/Auth0 จริง
+- [x] Mutation check: แก้ buffer แบตเตอรี่และ user id ของ cloud-routes ชั่วคราว พบ 5 tests fail ตามคาด แล้วคืนค่า source
+- [x] `npm run check` (lint + test + build) ผ่าน
+- [ ] ยังไม่มี component/UI tests และ e2e tests; ยังไม่มี CI workflow

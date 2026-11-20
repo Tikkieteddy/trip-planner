@@ -21,8 +21,7 @@
 ```bash
 git status -sb
 npm ci
-npm run lint
-npm run build
+npm run check
 ```
 
-Never print `.env.local` or expose tokens. `npm test` currently runs the production build only.
+Never print `.env.local` or expose tokens. `npm test` runs the Vitest suite in `tests/`.
