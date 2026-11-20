@@ -4,6 +4,7 @@
 
 | Date | Commit | Evidence-backed summary |
 |---|---|---|
+| 2026-11-20 | branch `feature/collapsible-panels` | Left/right side panels fold into icon rails on desktop so the map fills the space; state remembered per browser; version 1.4.0+20261120.5 |
 | 2026-11-20 | branch `docs/multi-day-live-test` | Docs: record Production live test of a 2-day trip (per-day routes, charger spread, kW display); no app code change |
 | 2026-11-20 | branch `feature/multi-day` | Multi-day trips: overnight stops split days (max 14), per-day Routes + charger search, day tabs for summary/map/itinerary/chargers/battery, daily summary, saved/shared with day split; version 1.3.0+20261120.4 |
 | 2026-11-20 | branch `docs/google-live-test` (fix) | Fix charger card kW to use fastest connector; search chargers in ~40 km route segments with interleaved results; compact one-row hero; version 1.2.7+20261120.3 |
