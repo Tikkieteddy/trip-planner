@@ -1,7 +1,7 @@
 {
   "name": "trip-planner",
-  "version": "1.6.0",
-  "build": "20261120.7",
+  "version": "1.6.2",
+  "build": "20261120.9",
   "private": true,
   "type": "module",
   "scripts": {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { curatedChargers } from "@/data/curated-chargers";
 
 const latLngSchema = z.object({
   latitude: z.number().min(-90).max(90),
@@ -137,10 +138,15 @@ const routeResultSchema = z.object({
   warnings: z.array(z.string()),
 });
 
+// Google returns up to 20 chargers per route search; hand-checked stations are added on top.
+const maxGoogleChargers = 20;
+const maxChargersPerDay = maxGoogleChargers + curatedChargers.length;
+const maxTripChargers = 14 * maxGoogleChargers + curatedChargers.length;
+
 export const dayPlanSchema = z.object({
   stops: z.array(plannerPlaceSchema).min(2).max(12),
   route: routeResultSchema,
-  chargers: z.array(plannerPlaceSchema).max(20),
+  chargers: z.array(plannerPlaceSchema).max(maxChargersPerDay),
   chargerNotice: z.string().max(800).optional(),
 });
 
@@ -154,7 +160,7 @@ export const savedTripSchema = z.object({
   tourismCenter: plannerPlaceSchema.nullable(),
   route: routeResultSchema.nullable().optional(),
   routeStops: z.array(plannerPlaceSchema).max(32).optional(),
-  chargers: z.array(plannerPlaceSchema).max(280).optional(),
+  chargers: z.array(plannerPlaceSchema).max(maxTripChargers).optional(),
   // Multi-day trips keep each day's own route and chargers; absent for one-day trips.
   dayPlans: z.array(dayPlanSchema).max(14).optional(),
   // Long routes are split into 20,000-character requests when searching for chargers,
