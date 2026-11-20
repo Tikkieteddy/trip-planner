@@ -27,7 +27,7 @@
 
 ## Exclusions / limitations
 
-- `days` is a trip attribute; no separate day-by-day itinerary is implemented (daily-plan feature removed).
+- Multi-day trips (v1.3.0): waypoints marked `overnight` split the trip into days (max 14). Each day is its own Google Routes request and charger search; `settings.days` is derived from the split. Saved trips keep `dayPlans` (per-day stops, route, chargers).
 - Range/battery is an estimate, not a guarantee; it depends on user inputs and real-world conditions.
 - Google Places coverage, charger attributes and brand app links are incomplete/provider-dependent; never infer unknown operator metadata.
 - Ads monetization is intentionally last in the current roadmap; do not enable scripts before policy, consent, and provider verification.

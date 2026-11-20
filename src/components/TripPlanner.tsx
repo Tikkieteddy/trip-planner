@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  BedDouble,
   ArrowDown,
   ArrowUp,
   BatteryCharging,
@@ -40,8 +41,9 @@ import { estimateBatteryByLegs, batterySummaryText } from "@/lib/battery";
 import { postJson } from "@/lib/client-api";
 import { formatDistance, formatDuration, formatKwh, formatPercent, getDepartureIso } from "@/lib/format";
 import { decodePolyline, interleave, splitPolylineByDistance } from "@/lib/polyline";
+import { addDaysToIsoDate, combineDayRoutes, maxStopsPerDay, maxTripDays, splitStopsIntoDays, waypointDayIndexes } from "@/lib/trip-days";
 import { savedRouteLibrarySchema, savedRouteSchema, savedTripSchema } from "@/lib/schemas";
-import type { BatteryLegEstimate, ConnectorAggregation, LatLng, PlannerPlace, RouteResult, SavedRoute, SavedTrip, TourismCategory, TripSettings } from "@/types/trip";
+import type { BatteryLegEstimate, ConnectorAggregation, DayPlan, LatLng, PlannerPlace, RouteResult, SavedRoute, SavedTrip, TourismCategory, TripSettings } from "@/types/trip";
 import { GoogleMapPanel } from "@/components/GoogleMapPanel";
 import { PlaceSearchInput } from "@/components/PlaceSearchInput";
 import { AdSlot } from "@/components/AdSlot";
@@ -217,6 +219,12 @@ function buildDirectionsUrl(origin: PlannerPlace | null, destination: PlannerPla
   }
 
   return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function formatDayDate(isoDate: string) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  if (!year || !month || !day) return "";
+  return new Date(Date.UTC(year, month - 1, day, 12)).toLocaleDateString("th-TH", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
 function getRiskClass(risk: BatteryLegEstimate["risk"]) {
@@ -453,6 +461,10 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [waypoints, setWaypoints] = useState<PlannerPlace[]>([]);
   const [routeStops, setRouteStops] = useState<PlannerPlace[]>([]);
   const [route, setRoute] = useState<RouteResult | null>(null);
+  // Multi-day trips: one calculated route per day (empty for one-day trips).
+  const [dayPlans, setDayPlans] = useState<DayPlan[]>([]);
+  // null = whole trip, otherwise the day (0-based) shown in the summary, map and panels.
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [chargers, setChargers] = useState<PlannerPlace[]>([]);
   const [chargerSearchPolyline, setChargerSearchPolyline] = useState("");
   const [chargerNotice, setChargerNotice] = useState("");
@@ -620,6 +632,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       setChargers((parsed.data.chargers as PlannerPlace[] | undefined) ?? []);
       setChargerSearchPolyline(parsed.data.chargerSearchPolyline ?? "");
       setChargerNotice(parsed.data.chargerNotice ?? "");
+      setDayPlans((parsed.data.dayPlans as DayPlan[] | undefined) ?? []);
       setRouteName(defaultRouteName(parsed.data.origin, parsed.data.destination, parsed.data.settings.travelDate));
       setStatus("โหลดทริปที่บันทึกไว้ในเครื่องแล้ว");
     }
@@ -686,27 +699,47 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
   const terminalDestination = settings.tripType === "round-trip" ? origin : destination;
 
-  const estimates = useMemo(
-    () =>
-      route
-        ? estimateBatteryByLegs({
-            legs: route.legs,
-            stops: routeStops.length > 0 ? routeStops : [origin, ...routeWaypoints, terminalDestination].filter(
-              (place): place is PlannerPlace => Boolean(place),
-            ),
-            settings,
-          })
-        : [],
-    [origin, route, routeStops, routeWaypoints, settings, terminalDestination],
+  // Days as currently planned (from overnight stops), available before calculating.
+  const plannedDays = useMemo(
+    () => splitStopsIntoDays([origin, ...routeWaypoints, terminalDestination].filter((place): place is PlannerPlace => Boolean(place))),
+    [origin, routeWaypoints, terminalDestination],
+  );
+  const plannedDayCount = Math.min(maxTripDays, Math.max(1, plannedDays.length));
+  const waypointDays = useMemo(() => waypointDayIndexes(waypoints), [waypoints]);
+  const destinationDay = waypoints.filter((waypoint) => waypoint.overnight).length;
+  const dayCount = Math.max(plannedDayCount, dayPlans.length);
+  const activeDay = dayCount > 1 && selectedDay !== null && selectedDay < dayCount ? selectedDay : null;
+  const activeDayPlan = activeDay !== null ? (dayPlans[activeDay] ?? null) : null;
+  // What the summary, map and panels show: the selected day, or the whole trip.
+  const displayRoute = activeDay !== null ? (activeDayPlan?.route ?? null) : route;
+  const displayChargers = activeDay !== null ? (activeDayPlan?.chargers ?? []) : chargers;
+  const displayChargerNotice = activeDay !== null ? (activeDayPlan?.chargerNotice ?? "") : chargerNotice;
+  const displayChargerPolyline = activeDay !== null ? (activeDayPlan?.route.encodedPolyline ?? "") : chargerSearchPolyline;
+
+  // Each day starts with the set starting battery (charged overnight).
+  const dayEstimates = useMemo(
+    () => (dayPlans.length > 1 ? dayPlans.map((day) => estimateBatteryByLegs({ legs: day.route.legs, stops: day.stops, settings })) : null),
+    [dayPlans, settings],
   );
 
-  const itineraryStops = useMemo(
-    () =>
-      routeStops.length > 0
-        ? routeStops
-        : [origin, ...routeWaypoints, terminalDestination].filter((place): place is PlannerPlace => Boolean(place)),
-    [origin, routeStops, routeWaypoints, terminalDestination],
-  );
+  const estimates = useMemo(() => {
+    if (dayEstimates) return activeDay !== null ? (dayEstimates[activeDay] ?? []) : dayEstimates.flat();
+    if (activeDay !== null || !route) return [];
+    return estimateBatteryByLegs({
+      legs: route.legs,
+      stops: routeStops.length > 0 ? routeStops : [origin, ...routeWaypoints, terminalDestination].filter(
+        (place): place is PlannerPlace => Boolean(place),
+      ),
+      settings,
+    });
+  }, [activeDay, dayEstimates, origin, route, routeStops, routeWaypoints, settings, terminalDestination]);
+
+  const itineraryStops = useMemo(() => {
+    if (activeDay !== null) return activeDayPlan?.stops ?? plannedDays[activeDay] ?? [];
+    return routeStops.length > 0
+      ? routeStops
+      : [origin, ...routeWaypoints, terminalDestination].filter((place): place is PlannerPlace => Boolean(place));
+  }, [activeDay, activeDayPlan, origin, plannedDays, routeStops, routeWaypoints, terminalDestination]);
 
   const routeInputError = useMemo(() => {
     if (origin && destination && samePlace(origin, destination)) {
@@ -748,7 +781,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const panelMenuItems = [
     { key: "route" as const, label: "วางแผน", icon: Navigation, count: waypoints.length },
     { key: "itinerary" as const, label: "รายการเดินทาง", icon: CalendarClock, count: itineraryStops.length },
-    { key: "chargers" as const, label: "จุดชาร์จ", icon: BatteryCharging, count: chargers.length },
+    { key: "chargers" as const, label: "จุดชาร์จ", icon: BatteryCharging, count: displayChargers.length },
     { key: "nearby" as const, label: "ที่แวะใกล้เคียง", icon: MapPinned, count: nearbyPlaces.length },
     { key: "vehicle" as const, label: "รถ/บันทึก", icon: Car, count: null },
   ];
@@ -782,9 +815,9 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   );
   const selectedChargerReference =
     chargerReferenceOptions.find((option) => option.value === chargerReferenceId) ?? chargerReferenceOptions[0] ?? null;
-  const routeSamplePoints = useMemo(() => (chargerSearchPolyline ? sampleRoutePoints(decodePolyline(chargerSearchPolyline)) : []), [chargerSearchPolyline]);
+  const routeSamplePoints = useMemo(() => (displayChargerPolyline ? sampleRoutePoints(decodePolyline(displayChargerPolyline)) : []), [displayChargerPolyline]);
   const sortedChargers = useMemo(() => {
-    return [...chargers].sort((first, second) => {
+    return [...displayChargers].sort((first, second) => {
       if (chargerSort === "reference-near" || chargerSort === "reference-far") {
         if (!selectedChargerReference) return 0;
         const referenceLocation = selectedChargerReference.place.location;
@@ -809,7 +842,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         (second.rating ?? 0) - (first.rating ?? 0)
       );
     });
-  }, [chargerSort, chargers, routeSamplePoints, selectedChargerReference]);
+  }, [chargerSort, displayChargers, routeSamplePoints, selectedChargerReference]);
 
   function getChargerMetric(place: PlannerPlace) {
     if (chargerSort === "reference-near" || chargerSort === "reference-far") {
@@ -873,6 +906,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   function clearComputedData(preserveChargerRecommendations = false) {
     setRoute(null);
     setRouteStops([]);
+    setDayPlans([]);
     if (!preserveChargerRecommendations) {
       setChargers([]);
       setChargerNotice("");
@@ -899,19 +933,57 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     }
 
     const isCharger = Boolean(place.evChargeOptions || place.types?.includes("electric_vehicle_charging_station"));
-    setWaypoints((current) => [
-      ...current,
-      {
-        ...place,
-        stopMinutes: place.stopMinutes ?? (isCharger ? 35 : 45),
-        chargeTargetPercent: isCharger ? (place.chargeTargetPercent ?? 85) : place.chargeTargetPercent,
-      },
-    ]);
+    const newStop = {
+      ...place,
+      overnight: undefined,
+      stopMinutes: place.stopMinutes ?? (isCharger ? 35 : 45),
+      chargeTargetPercent: isCharger ? (place.chargeTargetPercent ?? 85) : place.chargeTargetPercent,
+    };
+    // While a day is selected, add the stop to that day (before its overnight stop).
+    let insertAt = waypoints.length;
+    if (activeDay !== null) {
+      const lastOfDay = waypointDays.lastIndexOf(activeDay);
+      const firstOfLaterDay = waypointDays.findIndex((day) => day > activeDay);
+      if (lastOfDay >= 0) insertAt = waypoints[lastOfDay].overnight ? lastOfDay : lastOfDay + 1;
+      else if (firstOfLaterDay >= 0) insertAt = firstOfLaterDay;
+    }
+    setWaypoints((current) => [...current.slice(0, insertAt), newStop, ...current.slice(insertAt)]);
     clearComputedData(isCharger);
     if (isCharger) {
       setChargerNotice("รายการแนะนำจากเส้นทางก่อนหน้า กรุณาคำนวณเส้นทางใหม่หลังเลือกจุดชาร์จ");
     }
     setStatus(`เพิ่ม ${place.name} เป็นจุดแวะแล้ว`);
+  }
+
+  function toggleWaypointOvernight(index: number) {
+    const place = waypoints[index];
+    if (!place) return;
+    const overnight = !place.overnight;
+
+    if (overnight && plannedDayCount >= maxTripDays) {
+      setError(`ทริปยาวได้สูงสุด ${maxTripDays} วัน`);
+      return;
+    }
+
+    setError("");
+    setWaypoints((current) => current.map((waypoint, currentIndex) => (currentIndex === index ? { ...waypoint, overnight: overnight || undefined } : waypoint)));
+    clearComputedData();
+    setStatus(overnight ? `ตั้ง ${place.name} เป็นจุดพักค้างคืนแล้ว วันถัดไปจะเริ่มจากที่นี่` : `ยกเลิกการพักค้างคืนที่ ${place.name} แล้ว`);
+  }
+
+  function toggleDestinationOvernight() {
+    if (!destination) return;
+    const overnight = !destination.overnight;
+
+    if (overnight && plannedDayCount >= maxTripDays) {
+      setError(`ทริปยาวได้สูงสุด ${maxTripDays} วัน`);
+      return;
+    }
+
+    setError("");
+    setDestination({ ...destination, overnight: overnight || undefined });
+    clearComputedData();
+    setStatus(overnight ? `พักค้างคืนที่ ${destination.name} ก่อนเดินทางกลับ` : `ยกเลิกการพักค้างคืนที่ ${destination.name} แล้ว`);
   }
 
   function removeWaypoint(index: number) {
@@ -1032,45 +1104,61 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     };
   }
 
-  async function searchChargingStations(encodedPolyline: string, stops: PlannerPlace[]) {
-    setChargerSearchPolyline(encodedPolyline);
+  /** Find chargers along one route (one day). Returns results instead of setting state. */
+  async function findChargersForRoute(encodedPolyline: string, stops: PlannerPlace[]) {
+    const routeChargerResult = await searchRouteChargersByPolyline(encodedPolyline);
+
+    if (routeChargerResult.places.length > 0) {
+      const segmentedNotice =
+        routeChargerResult.segmentCount > 1
+          ? `ระบบแบ่งค้นหาสถานีชาร์จตามแนวเส้นทางเป็น ${routeChargerResult.segmentCount} ช่วง`
+          : "";
+      const partialNotice =
+        routeChargerResult.failedCount > 0 ? ` บางช่วงค้นหาไม่สำเร็จ ${routeChargerResult.failedCount} ช่วง` : "";
+
+      return {
+        places: routeChargerResult.places,
+        notice: `${segmentedNotice}${partialNotice}`.trim(),
+        status: `พบสถานีชาร์จตามแนวเส้นทาง ${routeChargerResult.places.length} แห่ง`,
+      };
+    }
+
+    if (encodedPolyline.length > routeChargerPolylineLimit) {
+      const fallbackChargers = await searchNearbyChargersFallback(getFallbackChargerCenters(stops));
+
+      return {
+        places: fallbackChargers,
+        notice: "แบ่งเส้นทางค้นหาตามแนวถนนแล้ว แต่ยังไม่พบสถานีชาร์จ ระบบจึงค้นหาใกล้ต้นทาง จุดแวะ และปลายทางแทน",
+        status:
+          fallbackChargers.length > 0
+            ? `พบสถานีชาร์จสำรอง ${fallbackChargers.length} แห่งใกล้จุดสำคัญของทริป`
+            : "คำนวณเส้นทางสำเร็จ แต่ยังไม่พบสถานีชาร์จใกล้จุดสำคัญของทริป",
+      };
+    }
+
+    return { places: [] as PlannerPlace[], notice: "", status: "Google Places ไม่พบสถานีชาร์จตามแนวเส้นทางนี้" };
+  }
+
+  async function searchChargingStations(days: Array<{ stops: PlannerPlace[]; route: RouteResult }>, tripPolyline: string) {
+    setChargerSearchPolyline(tripPolyline);
     setPlacesLoading(true);
     setChargerNotice("");
 
     try {
-      const routeChargerResult = await searchRouteChargersByPolyline(encodedPolyline);
+      // Each day gets its own search so every day has chargers along its own route.
+      const results = await Promise.all(days.map((day) => findChargersForRoute(day.route.encodedPolyline, day.stops)));
 
-      if (routeChargerResult.places.length > 0) {
-        const segmentedNotice =
-          routeChargerResult.segmentCount > 1
-            ? `ระบบแบ่งค้นหาสถานีชาร์จตามแนวเส้นทางเป็น ${routeChargerResult.segmentCount} ช่วง`
-            : "";
-        const partialNotice =
-          routeChargerResult.failedCount > 0 ? ` บางช่วงค้นหาไม่สำเร็จ ${routeChargerResult.failedCount} ช่วง` : "";
-
-        setChargers(routeChargerResult.places);
-        setChargerNotice(`${segmentedNotice}${partialNotice}`.trim());
-        setStatus(`พบสถานีชาร์จตามแนวเส้นทาง ${routeChargerResult.places.length} แห่ง`);
+      if (days.length === 1) {
+        setChargers(results[0].places);
+        setChargerNotice(results[0].notice);
+        setStatus(results[0].status);
         return;
       }
 
-      if (encodedPolyline.length > routeChargerPolylineLimit) {
-        const fallbackChargers = await searchNearbyChargersFallback(getFallbackChargerCenters(stops));
-        const notice =
-          "แบ่งเส้นทางค้นหาตามแนวถนนแล้ว แต่ยังไม่พบสถานีชาร์จ ระบบจึงค้นหาใกล้ต้นทาง จุดแวะ และปลายทางแทน";
-
-        setChargers(fallbackChargers);
-        setChargerNotice(notice);
-        setStatus(
-          fallbackChargers.length > 0
-            ? `พบสถานีชาร์จสำรอง ${fallbackChargers.length} แห่งใกล้จุดสำคัญของทริป`
-            : "คำนวณเส้นทางสำเร็จ แต่ยังไม่พบสถานีชาร์จใกล้จุดสำคัญของทริป",
-        );
-        return;
-      }
-
-      setChargers([]);
-      setStatus("Google Places ไม่พบสถานีชาร์จตามแนวเส้นทางนี้");
+      const allChargers = uniquePlaces(results.flatMap((result) => result.places));
+      setDayPlans(days.map((day, index) => ({ ...day, chargers: results[index].places, chargerNotice: results[index].notice })));
+      setChargers(allChargers);
+      setStatus(`คำนวณ ${days.length} วันแล้ว พบสถานีชาร์จรวม ${allChargers.length} แห่ง`);
     } catch (fetchError) {
       setChargers([]);
       setChargerNotice(fetchError instanceof Error ? fetchError.message : "ค้นหาสถานีชาร์จไม่สำเร็จ");
@@ -1102,35 +1190,64 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         waypoints.filter((waypoint) => !samePlace(waypoint, origin) && !samePlace(waypoint, destination)),
       );
       const requestWaypoints = isRoundTrip ? [...cleanWaypoints, destination] : cleanWaypoints;
-      const response = await postJson<RouteResponse>("/api/routes", {
-        origin,
-        destination: requestDestination,
-        waypoints: requestWaypoints,
-        departureTime: getDepartureIso(settings.travelDate, settings.departureTime),
-        avoidTolls: settings.avoidTolls,
-        avoidHighways: settings.avoidHighways,
-        avoidFerries: settings.avoidFerries,
-        optimizeWaypointOrder: !isRoundTrip && settings.optimizeWaypointOrder,
-      });
-      let orderedWaypoints = requestWaypoints;
 
       if (cleanWaypoints.length !== waypoints.length) {
         setWaypoints(cleanWaypoints);
       }
 
-      if (!isRoundTrip && response.route.optimizedWaypointOrder.length === requestWaypoints.length) {
-        orderedWaypoints = response.route.optimizedWaypointOrder.map((index) => requestWaypoints[index]);
-        setWaypoints(orderedWaypoints);
+      const dayStopLists = splitStopsIntoDays([origin, ...requestWaypoints, requestDestination]);
+      if (dayStopLists.length > maxTripDays) {
+        throw new Error(`ทริปยาวได้สูงสุด ${maxTripDays} วัน กรุณาลดจุดพักค้างคืน`);
+      }
+      const crowdedDay = dayStopLists.findIndex((dayStops) => dayStops.length - 2 > maxStopsPerDay);
+      if (crowdedDay >= 0) {
+        throw new Error(`วันที่ ${crowdedDay + 1} มีจุดแวะเกิน ${maxStopsPerDay} จุด กรุณาเพิ่มจุดพักค้างคืนหรือลดจุดแวะ`);
+      }
+
+      const optimize = !isRoundTrip && settings.optimizeWaypointOrder;
+      // One Google Routes request per day, leaving on that day's date.
+      const responses = await Promise.all(
+        dayStopLists.map((dayStops, dayIndex) =>
+          postJson<RouteResponse>("/api/routes", {
+            origin: dayStops[0],
+            destination: dayStops[dayStops.length - 1],
+            waypoints: dayStops.slice(1, -1),
+            departureTime: getDepartureIso(addDaysToIsoDate(settings.travelDate, dayIndex), settings.departureTime),
+            avoidTolls: settings.avoidTolls,
+            avoidHighways: settings.avoidHighways,
+            avoidFerries: settings.avoidFerries,
+            optimizeWaypointOrder: optimize,
+          }),
+        ),
+      );
+
+      // Waypoint optimisation only reorders stops within a day; overnight stops stay put.
+      let reordered = false;
+      const orderedDays = dayStopLists.map((dayStops, dayIndex) => {
+        const middle = dayStops.slice(1, -1);
+        const order = responses[dayIndex].route.optimizedWaypointOrder;
+        if (!optimize || middle.length < 2 || order.length !== middle.length) return dayStops;
+        const nextMiddle = order.map((index) => middle[index]);
+        if (nextMiddle.some((place, index) => place !== middle[index])) reordered = true;
+        return [dayStops[0], ...nextMiddle, dayStops[dayStops.length - 1]];
+      });
+      const orderedStops = orderedDays.flatMap((dayStops, dayIndex) => (dayIndex === 0 ? dayStops : dayStops.slice(1)));
+
+      if (reordered) {
+        setWaypoints(orderedStops.slice(1, -1));
         setStatus("Google Routes API จัดลำดับจุดแวะใหม่ให้แล้ว");
       }
 
-      const computedStops = [origin, ...orderedWaypoints, requestDestination];
-      setRoute(response.route);
-      setRouteStops(computedStops);
-      await searchChargingStations(response.route.encodedPolyline, computedStops);
+      const days = orderedDays.map((stops, dayIndex) => ({ stops, route: responses[dayIndex].route }));
+      const tripRoute = combineDayRoutes(days.map((day) => day.route)) as RouteResult;
+      setRoute(tripRoute);
+      setRouteStops(orderedStops);
+      setDayPlans(days.length > 1 ? days.map((day) => ({ ...day, chargers: [] })) : []);
+      await searchChargingStations(days, tripRoute.encodedPolyline);
     } catch (fetchError) {
       setRoute(null);
       setRouteStops([]);
+      setDayPlans([]);
       setChargers([]);
       setError(fetchError instanceof Error ? fetchError.message : "คำนวณเส้นทางไม่สำเร็จ");
     } finally {
@@ -1182,7 +1299,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     return {
       version: 2,
       savedAt: new Date().toISOString(),
-      settings,
+      settings: { ...settings, days: plannedDayCount },
       origin,
       destination,
       waypoints,
@@ -1192,6 +1309,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       chargers,
       chargerSearchPolyline,
       chargerNotice,
+      dayPlans: dayPlans.length > 1 ? dayPlans : undefined,
     };
   }
 
@@ -1206,6 +1324,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     setChargers(snapshot.chargers ?? []);
     setChargerSearchPolyline(snapshot.chargerSearchPolyline ?? "");
     setChargerNotice(snapshot.chargerNotice ?? "");
+    setDayPlans(snapshot.dayPlans ?? []);
+    setSelectedDay(null);
     setRouteName(defaultRouteName(snapshot.origin, snapshot.destination, snapshot.settings.travelDate));
     setActivePanel("route");
     setStatus(message);
@@ -1274,7 +1394,16 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     }
 
     const name = routeName.trim() || defaultRouteName(origin, destination, settings.travelDate);
-    const text = `Route: ${name}\nเส้นทาง Google Maps: ${directionsUrl}\nวางแผนทริป EV ต่อได้ที่ ${publicAppUrl}`;
+    const dayLines =
+      dayPlans.length > 1
+        ? dayPlans
+            .map(
+              (plan, dayIndex) =>
+                `วันที่ ${dayIndex + 1}: ${plan.stops[0]?.name} → ${plan.stops[plan.stops.length - 1]?.name} (${formatDistance(plan.route.distanceMeters)})`,
+            )
+            .join("\n") + "\n"
+        : "";
+    const text = `Route: ${name}\n${dayLines}เส้นทาง Google Maps: ${directionsUrl}\nวางแผนทริป EV ต่อได้ที่ ${publicAppUrl}`;
 
     try {
       if (navigator.share) {
@@ -1418,6 +1547,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         setChargers((parsed.data.chargers as PlannerPlace[] | undefined) ?? []);
         setChargerSearchPolyline(parsed.data.chargerSearchPolyline ?? "");
         setChargerNotice(parsed.data.chargerNotice ?? "");
+        setDayPlans((parsed.data.dayPlans as DayPlan[] | undefined) ?? []);
         setRouteName(typeof draft.routeName === "string" && draft.routeName.trim() ? draft.routeName : defaultRouteName(parsed.data.origin, parsed.data.destination, parsed.data.settings.travelDate));
         setStatus("กลับมาที่ Route เดิมหลังเข้าสู่ระบบแล้ว");
       } catch {
@@ -1453,12 +1583,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               <button type="button" onClick={() => setSummaryDetail((current) => (current === "distance" ? null : "distance"))} aria-expanded={summaryDetail === "distance"} title="อธิบายระยะทางรวม" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-container px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-secondary-container">
                 <Navigation className="size-4 text-cyan-deep" aria-hidden="true" />
                 ระยะทาง
-                <strong className="text-sm">{route ? formatDistance(route.distanceMeters) : "รอคำนวณ"}</strong>
+                <strong className="text-sm">{displayRoute ? formatDistance(displayRoute.distanceMeters) : "รอคำนวณ"}</strong>
               </button>
               <button type="button" onClick={() => setSummaryDetail((current) => (current === "duration" ? null : "duration"))} aria-expanded={summaryDetail === "duration"} title="อธิบายเวลาเดินทาง" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-container px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-secondary-container">
                 <CalendarClock className="size-4 text-cyan-deep" aria-hidden="true" />
                 เวลา
-                <strong className="text-sm">{route ? formatDuration(route.duration) : "รอคำนวณ"}</strong>
+                <strong className="text-sm">{displayRoute ? formatDuration(displayRoute.duration) : "รอคำนวณ"}</strong>
               </button>
               <button type="button" onClick={() => setSummaryDetail((current) => (current === "battery" ? null : "battery"))} aria-expanded={summaryDetail === "battery"} title="อธิบายการประเมินแบตเตอรี่" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border border-border bg-surface-container px-3 text-xs font-black text-primary-deep shadow-sm hover:bg-secondary-container">
                 <BatteryCharging className="size-4 text-cyan-deep" aria-hidden="true" />
@@ -1544,14 +1674,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 <Navigation className="size-4 shrink-0 text-secondary" aria-hidden="true" />
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold text-muted sm:text-xs">ระยะทาง</p>
-                  <p className="truncate text-xs font-black sm:text-sm">{route ? formatDistance(route.distanceMeters) : "รอคำนวณ"}</p>
+                  <p className="truncate text-xs font-black sm:text-sm">{displayRoute ? formatDistance(displayRoute.distanceMeters) : "รอคำนวณ"}</p>
                 </div>
               </div>
               <div className="flex min-w-0 items-center gap-2 border-x border-border px-2 sm:px-3">
                 <CalendarClock className="size-4 shrink-0 text-secondary" aria-hidden="true" />
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold text-muted sm:text-xs">เวลาเดินทาง</p>
-                  <p className="truncate text-xs font-black sm:text-sm">{route ? formatDuration(route.duration) : "รอคำนวณ"}</p>
+                  <p className="truncate text-xs font-black sm:text-sm">{displayRoute ? formatDuration(displayRoute.duration) : "รอคำนวณ"}</p>
                 </div>
               </div>
               <div className="flex min-w-0 items-center gap-2 px-1 sm:px-2">
@@ -1564,6 +1694,44 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             </div>
           </div>
         </div>
+        {dayCount > 1 ? (
+          <nav data-tour="day-tabs" aria-label="เลือกดูรายวัน" className="mt-2 flex gap-2 overflow-x-auto pb-1">
+            <button
+              type="button"
+              aria-pressed={activeDay === null}
+              onClick={() => setSelectedDay(null)}
+              title="ดูภาพรวมทั้งทริป"
+              className={`inline-flex min-h-11 shrink-0 flex-col items-start justify-center rounded-xl border px-3 py-1 text-xs font-black ${
+                activeDay === null ? "border-primary bg-primary text-white" : "border-border bg-white text-primary-deep hover:border-cyan"
+              }`}
+            >
+              <span>ทั้งทริป</span>
+              <span className="text-[10px] font-bold opacity-80">{dayCount} วัน</span>
+            </button>
+            {Array.from({ length: dayCount }, (_, dayIndex) => {
+              const plan = dayPlans[dayIndex];
+              const active = activeDay === dayIndex;
+
+              return (
+                <button
+                  key={dayIndex}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setSelectedDay(dayIndex)}
+                  title={`ดูและแก้ไขวันที่ ${dayIndex + 1}`}
+                  className={`inline-flex min-h-11 shrink-0 flex-col items-start justify-center rounded-xl border px-3 py-1 text-xs font-black ${
+                    active ? "border-primary bg-primary text-white" : "border-border bg-white text-primary-deep hover:border-cyan"
+                  }`}
+                >
+                  <span>วันที่ {dayIndex + 1} · {formatDayDate(addDaysToIsoDate(settings.travelDate, dayIndex))}</span>
+                  <span className="text-[10px] font-bold opacity-80">
+                    {plan ? `${formatDistance(plan.route.distanceMeters)} · ${formatDuration(plan.route.duration)}` : "รอคำนวณ"}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+        ) : null}
       </section>
 
       <AdSlot />
@@ -1661,7 +1829,13 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                       <option value="round-trip">ไป-กลับ</option>
                     </select>
                   </label>
-                  <NumberField label="จำนวนวัน" value={settings.days} min={1} max={7} unit="วัน" onChange={(value) => updateSetting("days", value)} />
+                  <div>
+                    <span className="text-xs font-black text-primary-deep">จำนวนวัน</span>
+                    <p className="mt-1 flex min-h-10 items-center rounded-lg border border-border bg-surface-container-low px-3 text-sm font-bold text-primary-deep">{plannedDayCount} วัน</p>
+                    <p className="mt-1 text-[11px] font-semibold leading-4 text-muted">
+                      แบ่งวันด้วยปุ่ม “พักค้างคืน” ที่จุดแวะ (สูงสุด {maxTripDays} วัน)
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1722,7 +1896,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           <section data-tour="filter-settings" className={`${activeSetupPanel === "filters" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <h2 className="text-lg font-black text-primary-deep">ตัวกรองและข้อจำกัด</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <NumberField label="จุดแวะสูงสุด" value={settings.maxStops} min={0} max={10} unit="จุด" onChange={(value) => updateSetting("maxStops", value)} />
+              <NumberField label="จุดแวะสูงสุด" value={settings.maxStops} min={0} max={30} unit="จุด" onChange={(value) => updateSetting("maxStops", value)} />
               <NumberField label="คะแนนขั้นต่ำ" value={settings.minRating} min={0} max={5} step={0.1} unit="★" onChange={(value) => updateSetting("minRating", value)} />
               <NumberField label="รัศมีท่องเที่ยว" value={settings.tourismRadiusKm} min={1} max={50} unit="กม." onChange={(value) => updateSetting("tourismRadiusKm", value)} />
             </div>
@@ -1764,14 +1938,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             mapId={mapId}
             className="min-h-[360px] flex-1 sm:min-h-[460px] lg:min-h-[640px]"
             mapClassName="h-[320px] min-h-[320px] sm:h-[420px] sm:min-h-[420px] lg:h-[min(68vh,760px)] lg:min-h-[560px]"
-            origin={origin}
-            destination={destination}
-            waypoints={waypoints}
-            chargers={chargers}
+            origin={activeDay !== null ? (itineraryStops[0] ?? null) : origin}
+            destination={activeDay !== null ? (itineraryStops[itineraryStops.length - 1] ?? null) : destination}
+            waypoints={activeDay !== null ? itineraryStops.slice(1, -1) : waypoints}
+            chargers={displayChargers}
             nearbyPlaces={nearbyPlaces}
             tourismCenter={tourismCenter}
             tourismRadiusKm={settings.tourismRadiusKm}
-            routePolyline={route?.encodedPolyline}
+            routePolyline={displayRoute?.encodedPolyline}
             tutorialSearchOpen={tutorialMapSearchOpen}
             onMapCenterSelected={(place) => {
               setTourismCenter(place);
@@ -1900,7 +2074,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
             {activePanel === "route" ? (
               <>
                 <div className="mt-4 space-y-3">
-                  {origin ? (
+                  {activeDay !== null && activeDay > 0 ? (
+                    <div className="rounded-lg border border-success/20 bg-primary-soft/40 p-3">
+                      <p className="text-xs font-black text-success">เริ่มวันที่ {activeDay + 1} (จุดพักคืนก่อน)</p>
+                      <p className="mt-1 text-sm font-black text-primary-deep">{itineraryStops[0]?.name}</p>
+                    </div>
+                  ) : origin ? (
                     <div className="rounded-lg border border-success/20 bg-primary-soft/40 p-3">
                       <p className="text-xs font-black text-success">เริ่มต้น</p>
                       <p className="mt-1 text-sm font-black text-primary-deep">{origin.name}</p>
@@ -1909,18 +2088,37 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     <p className="rounded-lg border border-dashed border-border p-3 text-sm font-bold text-muted">ยังไม่ได้เลือกต้นทาง</p>
                   )}
 
-                  {waypoints.map((place, index) => (
-                    <div key={`${place.id}-${index}`} className="rounded-lg border border-border bg-white p-3 shadow-sm">
+                  {waypoints.map((place, index) => activeDay !== null && waypointDays[index] !== activeDay ? null : (
+                    <div key={`${place.id}-${index}`} className={`rounded-lg border p-3 shadow-sm ${place.overnight ? "border-primary/40 bg-primary-soft/30" : "border-border bg-white"}`}>
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="text-xs font-black text-warning">จุดแวะ {index + 1}</p>
+                          <p className="text-xs font-black text-warning">
+                            จุดแวะ {index + 1}
+                            {dayCount > 1 ? <span className="text-muted"> · วันที่ {waypointDays[index] + 1}</span> : null}
+                          </p>
                           <p className="mt-1 text-sm font-black leading-5 text-primary-deep">{place.name}</p>
                           <p className="mt-1 text-xs font-semibold text-muted">
                             พัก {place.stopMinutes ?? 45} นาที
                             {place.chargeTargetPercent ? ` / ชาร์จถึง ${place.chargeTargetPercent}%` : ""}
                           </p>
+                          {place.overnight ? (
+                            <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-primary px-2 py-0.5 text-[11px] font-black text-white">
+                              <BedDouble className="size-3.5" aria-hidden="true" />
+                              พักค้างคืน · จบวันที่ {waypointDays[index] + 1}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="flex shrink-0 gap-1">
+                          <button
+                            type="button"
+                            onClick={() => toggleWaypointOvernight(index)}
+                            aria-pressed={Boolean(place.overnight)}
+                            title={place.overnight ? "ยกเลิกพักค้างคืนที่จุดนี้" : "พักค้างคืนที่จุดนี้ วันถัดไปเริ่มจากที่นี่"}
+                            aria-label="พักค้างคืน"
+                            className={`grid size-8 place-items-center rounded-md border ${place.overnight ? "border-primary bg-primary text-white" : "border-border text-primary"}`}
+                          >
+                            <BedDouble className="size-4" />
+                          </button>
                           <button type="button" onClick={() => moveWaypoint(index, -1)} title="เลื่อนจุดแวะขึ้นหนึ่งตำแหน่ง" className="grid size-8 place-items-center rounded-md border border-border text-primary" aria-label="เลื่อนขึ้น">
                             <ArrowUp className="size-4" />
                           </button>
@@ -1935,10 +2133,32 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     </div>
                   ))}
 
-                  {destination ? (
+                  {activeDay !== null && activeDay !== destinationDay ? null : destination ? (
                     <div className="rounded-lg border border-danger/20 bg-red-50 p-3">
-                      <p className="text-xs font-black text-danger">{settings.tripType === "round-trip" ? "ปลายทางหลักก่อนกลับต้นทาง" : "ปลายทาง"}</p>
-                      <p className="mt-1 text-sm font-black text-primary-deep">{destination.name}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-black text-danger">{settings.tripType === "round-trip" ? "ปลายทางหลักก่อนกลับต้นทาง" : "ปลายทาง"}</p>
+                          <p className="mt-1 text-sm font-black text-primary-deep">{destination.name}</p>
+                          {settings.tripType === "round-trip" && destination.overnight ? (
+                            <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-primary px-2 py-0.5 text-[11px] font-black text-white">
+                              <BedDouble className="size-3.5" aria-hidden="true" />
+                              พักค้างคืนก่อนเดินทางกลับ
+                            </p>
+                          ) : null}
+                        </div>
+                        {settings.tripType === "round-trip" ? (
+                          <button
+                            type="button"
+                            onClick={toggleDestinationOvernight}
+                            aria-pressed={Boolean(destination.overnight)}
+                            title={destination.overnight ? "ยกเลิกพักค้างคืนที่ปลายทาง" : "พักค้างคืนที่ปลายทางก่อนเดินทางกลับ"}
+                            aria-label="พักค้างคืนที่ปลายทาง"
+                            className={`grid size-8 shrink-0 place-items-center rounded-md border ${destination.overnight ? "border-primary bg-primary text-white" : "border-border text-primary"}`}
+                          >
+                            <BedDouble className="size-4" />
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   ) : (
                     <p className="rounded-lg border border-dashed border-border p-3 text-sm font-bold text-muted">ยังไม่ได้เลือกปลายทาง</p>
@@ -1957,6 +2177,45 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               </>
             ) : (
               <div className="mt-4 space-y-3">
+                {activeDay === null && dayPlans.length > 1 ? (
+                  <div className="rounded-lg border border-cyan/35 bg-cyan/10 p-3">
+                    <p className="text-sm font-black text-primary-deep">สรุปรายวัน</p>
+                    <div className="mt-2 space-y-2">
+                      {dayPlans.map((plan, dayIndex) => (
+                        <button
+                          key={dayIndex}
+                          type="button"
+                          onClick={() => setSelectedDay(dayIndex)}
+                          title={`ดูและแก้ไขวันที่ ${dayIndex + 1}`}
+                          className="flex w-full items-start justify-between gap-2 rounded-md border border-border bg-white p-2 text-left hover:border-cyan"
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-xs font-black text-primary-deep">
+                              วันที่ {dayIndex + 1} · {formatDayDate(addDaysToIsoDate(settings.travelDate, dayIndex))}
+                            </span>
+                            <span className="block truncate text-xs font-semibold text-muted">
+                              {plan.stops[0]?.name} → {plan.stops[plan.stops.length - 1]?.name}
+                            </span>
+                            {dayEstimates?.[dayIndex]?.length ? (
+                              <span className="block truncate text-[11px] font-semibold text-muted">{batterySummaryText(dayEstimates[dayIndex])}</span>
+                            ) : null}
+                          </span>
+                          <span className="shrink-0 text-right text-xs font-black text-primary">
+                            {formatDistance(plan.route.distanceMeters)}
+                            <br />
+                            {formatDuration(plan.route.duration)}
+                          </span>
+                        </button>
+                      ))}
+                      {route ? (
+                        <div className="flex justify-between gap-2 border-t border-cyan/30 pt-2 text-xs font-black text-primary-deep">
+                          <span>รวมทั้งทริป {dayPlans.length} วัน</span>
+                          <span>{formatDistance(route.distanceMeters)} · {formatDuration(route.duration)}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
                 {itineraryStops.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-border p-4 text-sm font-bold leading-6 text-muted">
                     เลือกต้นทางและปลายทางก่อน ระบบจะแสดงลำดับการเดินทางในหน้านี้
@@ -1965,10 +2224,20 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   <div className="relative pl-6">
                     <div className="absolute bottom-6 left-[9px] top-6 w-0.5 rounded-full bg-border" aria-hidden="true" />
                     {itineraryStops.map((place, index) => {
-                      const leg = route?.legs[index - 1];
+                      const leg = displayRoute?.legs[index - 1];
                       const isFirst = index === 0;
                       const isLast = index === itineraryStops.length - 1;
-                      const stepLabel = isFirst ? "เริ่มต้น" : isLast ? "ปลายทาง" : `จุดแวะ ${index}`;
+                      const isDayEnd = activeDay !== null && isLast && activeDay < dayCount - 1;
+                      const isOvernightStop = activeDay === null && !isFirst && !isLast && dayCount > 1 && Boolean(place.overnight);
+                      const stepLabel = isFirst
+                        ? activeDay !== null && activeDay > 0
+                          ? `เริ่มวันที่ ${activeDay + 1}`
+                          : "เริ่มต้น"
+                        : isDayEnd
+                          ? "พักค้างคืน"
+                          : isLast
+                            ? "ปลายทาง"
+                            : `จุดแวะ ${index}`;
 
                       return (
                         <div key={`${place.id}-itinerary-${index}`} className="relative pb-3 last:pb-0">
@@ -1989,12 +2258,18 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                               <span className="shrink-0 rounded-md bg-primary-soft px-2 py-1 text-[10px] font-black text-primary">ลำดับ {index + 1}</span>
                             </div>
                             {place.address ? <p className="mt-1 text-xs font-semibold leading-5 text-muted">{place.address}</p> : null}
+                            {isOvernightStop ? (
+                              <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-primary px-2 py-0.5 text-[11px] font-black text-white">
+                                <BedDouble className="size-3.5" aria-hidden="true" />
+                                พักค้างคืน · เริ่มวันถัดไปจากที่นี่
+                              </p>
+                            ) : null}
                             {leg ? (
                               <p className="mt-2 rounded-md bg-primary-soft px-2 py-1 text-xs font-black text-primary">
                                 จากจุดก่อนหน้า {formatDistance(leg.distanceMeters)} / {formatDuration(leg.duration)}
                               </p>
                             ) : isFirst ? (
-                              <p className="mt-2 rounded-md bg-primary-soft/40 px-2 py-1 text-xs font-black text-success">จุดเริ่มต้นของทริป</p>
+                              <p className="mt-2 rounded-md bg-primary-soft/40 px-2 py-1 text-xs font-black text-success">{activeDay !== null && activeDay > 0 ? "จุดเริ่มต้นของวัน" : "จุดเริ่มต้นของทริป"}</p>
                             ) : null}
                           </div>
                         </div>
@@ -2002,7 +2277,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                     })}
                   </div>
                 )}
-                {!route && itineraryStops.length > 1 ? (
+                {!displayRoute && itineraryStops.length > 1 ? (
                   <p className="rounded-lg border border-dashed border-border p-3 text-xs font-bold leading-5 text-muted">
                     รายการนี้เป็นลำดับแผนคร่าวๆ กดคำนวณเส้นทางเพื่อเติมระยะทางและเวลาแต่ละช่วง
                   </p>
@@ -2012,9 +2287,9 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           </section>
 
           <section data-tour="chargers-panel" className={`${activePanel === "chargers" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
-            <h2 className="text-lg font-black text-primary-deep">สถานีชาร์จตามเส้นทาง</h2>
+            <h2 className="text-lg font-black text-primary-deep">สถานีชาร์จตามเส้นทาง{activeDay !== null ? ` วันที่ ${activeDay + 1}` : ""}</h2>
             <div className="mt-3 space-y-3">
-              {chargers.length > 1 ? (
+              {displayChargers.length > 1 ? (
                 <div className="rounded-lg border border-border bg-surface-strong p-2">
                   <p className="px-1 pb-2 text-xs font-black text-primary-deep">จัดอันดับจุดชาร์จ</p>
                   <div className="grid grid-cols-3 gap-2">
@@ -2060,18 +2335,18 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   </label>
                 </div>
               ) : null}
-              {chargerNotice ? (
+              {displayChargerNotice ? (
                 <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm font-bold leading-6 text-primary-deep">
                   <Info className="mr-2 inline size-4 text-primary" aria-hidden="true" />
-                  {chargerNotice}
+                  {displayChargerNotice}
                 </div>
               ) : null}
-              {placesLoading && chargers.length === 0 ? (
+              {placesLoading && displayChargers.length === 0 ? (
                 <div className="rounded-lg border border-border bg-primary-soft p-4 text-sm font-black text-primary">
                   <LoaderCircle className="mr-2 inline size-4 animate-spin" />
                   กำลังค้นหาจาก Google Places
                 </div>
-              ) : chargers.length === 0 ? (
+              ) : displayChargers.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border p-4 text-sm font-bold leading-6 text-muted">
                   หลังคำนวณเส้นทาง ระบบจะค้นหาสถานีชาร์จตามเส้นทาง หรือค้นหาใกล้จุดสำคัญของทริปเมื่อเส้นทางยาวมาก
                 </p>
@@ -2179,12 +2454,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               {estimates.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border p-4 text-sm font-bold text-muted">ยังไม่มี route leg สำหรับคำนวณ</p>
               ) : (
-                estimates.map((estimate) => (
-                  <div key={estimate.index} className="rounded-lg border border-border bg-white p-3 shadow-sm">
+                estimates.map((estimate, estimateIndex) => (
+                  <div key={estimateIndex} className="rounded-lg border border-border bg-white p-3 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-black text-muted">
-                          ช่วง {estimate.index + 1}: {estimate.fromName} → {estimate.toName}
+                          ช่วง {estimateIndex + 1}: {estimate.fromName} → {estimate.toName}
                         </p>
                         <p className="mt-1 text-sm font-black text-primary-deep">
                           {estimate.distanceKm.toLocaleString("th-TH", { maximumFractionDigits: 1 })} กม. / {estimate.durationText}
@@ -2341,6 +2616,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                       </div>
                       <span className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-black text-primary">
                         {savedRoute.route ? "มีเส้นทาง" : "รอคำนวณ"}
+                        {savedRoute.dayPlans?.length ? ` · ${savedRoute.dayPlans.length} วัน` : ""}
                       </span>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
