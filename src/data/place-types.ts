@@ -13,16 +13,16 @@ export const connectorOptions: Array<{ value: EVConnectorType | "ANY"; label: st
 
 export const tourismCategories: TourismCategory[] = [
   { id: "tourism", label: "สถานที่ท่องเที่ยว", includedTypes: ["tourist_attraction"] },
-  { id: "nature", label: "ธรรมชาติ", includedTypes: ["national_park", "park"] },
-  { id: "viewpoint", label: "จุดชมวิว", includedTypes: ["tourist_attraction"] },
-  { id: "worship", label: "วัดและศาสนสถาน", includedTypes: ["place_of_worship"] },
+  { id: "nature", label: "ธรรมชาติ", includedTypes: ["national_park", "park", "hiking_area", "garden"] },
+  { id: "viewpoint", label: "จุดชมวิว", includedTypes: ["scenic_spot", "observation_deck"] },
+  { id: "worship", label: "วัดและศาสนสถาน", includedTypes: ["buddhist_temple", "church", "hindu_temple", "mosque"] },
   { id: "museum", label: "พิพิธภัณฑ์", includedTypes: ["museum"] },
   { id: "cafe", label: "คาเฟ่", includedTypes: ["cafe"] },
   { id: "restaurant", label: "ร้านอาหาร", includedTypes: ["restaurant"] },
   { id: "hotel", label: "โรงแรม", includedTypes: ["hotel"] },
   { id: "fuel", label: "ปั๊มน้ำมัน", includedTypes: ["gas_station"] },
   { id: "rest-stop", label: "จุดพักรถ", includedTypes: ["rest_stop"] },
-  { id: "shopping", label: "แหล่งช้อปปิ้ง", includedTypes: ["shopping_mall"] },
+  { id: "shopping", label: "แหล่งช้อปปิ้ง", includedTypes: ["shopping_mall", "market", "department_store"] },
 ];
 
 export const nearbyActivityTypes = [
