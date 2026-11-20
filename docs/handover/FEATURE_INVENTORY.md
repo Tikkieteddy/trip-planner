@@ -2,7 +2,7 @@
 
 อัปเดต 28 ตุลาคม 2026. Status combines source inspection, existing `SYSTEM-FEATURE-CHECKLIST.md`, and commands run in this handover. It does not imply all live integrations were tested.
 
-สรุปผลตรวจ 20 รายการ: **Implemented 8 · Partial 10 · Deprecated 1 · NOT FOUND 1**. คำว่า Implemented หมายถึงพบโค้ดใน source ไม่ได้ยืนยันว่าบริการภายนอกหรือ workflow จริงผ่านการทดสอบครบแล้ว.
+สรุปผลตรวจ 20 รายการ: **Implemented 8 · Partial 11 · Deprecated 0 · NOT FOUND 1**. คำว่า Implemented หมายถึงพบโค้ดใน source ไม่ได้ยืนยันว่าบริการภายนอกหรือ workflow จริงผ่านการทดสอบครบแล้ว.
 
 | Feature | Module / source | Status | Dependencies | Known gaps / next check | Priority |
 |---|---|---|---|---|---|
@@ -22,7 +22,7 @@
 | First-use tutorial | `TutorialGuide.tsx` | Implemented in source | browser storage | 27-step spotlight QA on physical phone | P2 |
 | CMS login and Ads enable/disable | `/cms`, `/api/admin/*`, `admin-auth.ts` | Implemented in source | Admin env + optional Redis | Security review, provider approval, live test | P3, last |
 | Responsive ttdLab footer/version tooltip | `CreditFooter.tsx`, `version.ts` | Implemented in source | package metadata | Keyboard/touch QA remains external | P2 |
-| Daily itinerary by selected days | removed per checklist/tutorial | Deprecated / not implemented | - | Do not claim number of days creates day plans | - |
+| Multi-day trip (day-by-day plan) | `lib/trip-days.ts`, planner day tabs (v1.3.0) | Partial | Google Routes/Places per day | Overnight stops split days (max 14); one route + charger search per day; day tabs switch summary/map/itinerary/chargers/battery; saved/shared with the split. UI checked with a sample trip; real Google calculation of multiple days not yet tested | P1 |
 | Unit/integration/e2e test suite | `tests/`, `vitest.config.ts` | Partial | Vitest | Libs + API handlers covered with mocked services; no UI/e2e tests | P1 |
 | CI workflow | `.github/workflows/ci.yml` | Implemented | GitHub Actions | Runs `npm run check` on PRs and `main`; branch protection not configured | P2 |
 | SQL/ORM database and migrations | repo search | NOT FOUND | Redis is current persistence | No relational schema in source | - |

@@ -4,6 +4,9 @@
 
 | Date | Commit | Evidence-backed summary |
 |---|---|---|
+| 2026-11-20 | branch `feature/multi-day` | Multi-day trips: overnight stops split days (max 14), per-day Routes + charger search, day tabs for summary/map/itinerary/chargers/battery, daily summary, saved/shared with day split; version 1.3.0+20261120.4 |
+| 2026-11-20 | branch `docs/google-live-test` (fix) | Fix charger card kW to use fastest connector; search chargers in ~40 km route segments with interleaved results; compact one-row hero; version 1.2.7+20261120.3 |
+| 2026-11-20 | branch `docs/google-live-test` | Docs: record Production live test of Places autocomplete/details, Routes, battery and route chargers (one short one-way route, 7 Google calls); two charger issues found |
 | 2026-11-20 | branch `docs/auth0-cloud-sync-live-test` | Docs: record Production live test of Auth0 login, cloud route read/sync and logout (V.1.2.6+20261120.2); no app code change |
 | 2026-11-20 | branch `ci/github-actions` | Add GitHub Actions CI (`.github/workflows/ci.yml`): Node 24, `npm ci` + `npm run check` on PRs and pushes to `main`, read-only token; version 1.2.6+20261120.2 |
 | 2026-11-20 | branch `fix/next-16.4.6` | Security: next 16.4.3 -> 16.4.6 (7 moderate advisories up to 16.4.4, incl. SVG rejection bypass in image optimization); `npm audit --omit=dev` 0 vulnerabilities; version 1.2.5+20261120.1 (not deployed) |

@@ -39,6 +39,7 @@ export const plannerPlaceSchema = z.object({
   note: z.string().max(600).optional(),
   stopMinutes: z.number().int().min(0).max(600).optional(),
   chargeTargetPercent: z.number().min(0).max(100).optional(),
+  overnight: z.boolean().optional(),
 });
 
 export const autocompleteRequestSchema = z.object({
@@ -102,7 +103,7 @@ export const tripSettingsSchema = z.object({
   travelDate: z.string().min(8).max(20),
   departureTime: z.string().min(4).max(8),
   tripType: z.enum(["one-way", "round-trip"]),
-  days: z.number().int().min(1).max(7),
+  days: z.number().int().min(1).max(14),
   batteryStartPercent: z.number().min(0).max(100),
   reservePercent: z.number().min(0).max(80),
   batteryCapacityKwh: z.number().min(10).max(250),
@@ -110,7 +111,7 @@ export const tripSettingsSchema = z.object({
   maxRangeKm: z.number().min(50).max(1200),
   minChargerKw: z.number().min(0).max(500),
   connectorType: z.string().min(2).max(80),
-  maxStops: z.number().int().min(0).max(10),
+  maxStops: z.number().int().min(0).max(30),
   tourismRadiusKm: z.number().min(1).max(50),
   avoidTolls: z.boolean(),
   avoidHighways: z.boolean(),
@@ -121,33 +122,41 @@ export const tripSettingsSchema = z.object({
   includeEvStationPluz: z.boolean().default(true),
 });
 
+const routeResultSchema = z.object({
+  distanceMeters: z.number().min(0),
+  duration: z.string().min(1),
+  encodedPolyline: z.string().min(1).max(100000),
+  legs: z.array(
+    z.object({
+      distanceMeters: z.number().min(0),
+      duration: z.string().min(1),
+      staticDuration: z.string().optional(),
+    }),
+  ),
+  optimizedWaypointOrder: z.array(z.number().int().min(0)),
+  warnings: z.array(z.string()),
+});
+
+export const dayPlanSchema = z.object({
+  stops: z.array(plannerPlaceSchema).min(2).max(12),
+  route: routeResultSchema,
+  chargers: z.array(plannerPlaceSchema).max(20),
+  chargerNotice: z.string().max(800).optional(),
+});
+
 export const savedTripSchema = z.object({
   version: z.union([z.literal(1), z.literal(2)]),
   savedAt: z.string().min(1),
   settings: tripSettingsSchema,
   origin: plannerPlaceSchema.nullable(),
   destination: plannerPlaceSchema.nullable(),
-  waypoints: z.array(plannerPlaceSchema).max(10),
+  waypoints: z.array(plannerPlaceSchema).max(30),
   tourismCenter: plannerPlaceSchema.nullable(),
-  route: z
-    .object({
-      distanceMeters: z.number().min(0),
-      duration: z.string().min(1),
-      encodedPolyline: z.string().min(1).max(100000),
-      legs: z.array(
-        z.object({
-          distanceMeters: z.number().min(0),
-          duration: z.string().min(1),
-          staticDuration: z.string().optional(),
-        }),
-      ),
-      optimizedWaypointOrder: z.array(z.number().int().min(0)),
-      warnings: z.array(z.string()),
-    })
-    .nullable()
-    .optional(),
-  routeStops: z.array(plannerPlaceSchema).max(12).optional(),
-  chargers: z.array(plannerPlaceSchema).max(30).optional(),
+  route: routeResultSchema.nullable().optional(),
+  routeStops: z.array(plannerPlaceSchema).max(32).optional(),
+  chargers: z.array(plannerPlaceSchema).max(280).optional(),
+  // Multi-day trips keep each day's own route and chargers; absent for one-day trips.
+  dayPlans: z.array(dayPlanSchema).max(14).optional(),
   // Long routes are split into 20,000-character requests when searching for chargers,
   // but the original encoded polyline must be retained to reopen a saved trip.
   chargerSearchPolyline: z.string().max(100000).optional(),

@@ -46,6 +46,8 @@ export type PlannerPlace = {
   note?: string;
   stopMinutes?: number;
   chargeTargetPercent?: number;
+  /** Multi-day trips: the day ends at this stop and the next day starts here. */
+  overnight?: boolean;
 };
 
 export type PlacePrediction = {
@@ -135,6 +137,8 @@ export type SavedTrip = {
   chargers?: PlannerPlace[];
   chargerSearchPolyline?: string;
   chargerNotice?: string;
+  // Multi-day trips only: each day's own route and chargers.
+  dayPlans?: DayPlan[];
 };
 
 export type SavedRoute = SavedTrip & {
@@ -145,4 +149,12 @@ export type SavedRoute = SavedTrip & {
 export type ApiErrorResponse = {
   error: string;
   detail?: string;
+};
+
+/** One day of a multi-day trip, calculated as its own route. */
+export type DayPlan = {
+  stops: PlannerPlace[];
+  route: RouteResult;
+  chargers: PlannerPlace[];
+  chargerNotice?: string;
 };
