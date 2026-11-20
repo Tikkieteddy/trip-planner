@@ -4,6 +4,7 @@
 
 | Date | Commit | Evidence-backed summary |
 |---|---|---|
+| 2026-11-20 | branch `fix/day-charger-limit` (2) | Fix header not staying pinned (overflow-x-hidden -> clip); status messages become a small auto-hiding notice; version 1.6.2+20261120.9 |
 | 2026-11-20 | branch `fix/day-charger-limit` | Fix: saving a multi-day trip failed when a day had more than 20 chargers (Google + curated); caps now 20 + curated per day, 14x20 + curated per trip; version 1.6.1+20261120.8 |
 | 2026-11-20 | branch `feature/unified-header` | Curated chargers: 50 hand-checked stations (Salaya/Sala Klang, Lopburi Tha Luang + Mueang, Phetchabun Mueang) in `src/data/curated-chargers.ts`, merged into route charger results within 3 km of the route or 20 km of a stop, de-duplicated against Google results, filters respected, badge "ข้อมูลสำรวจเอง"; place source `curated`; version 1.6.0+20261120.7 |
 | 2026-11-20 | branch `feature/unified-header` | One green header bar (header + hero merged), single trip summary, title "EV Planner", ttdLab logo; version 1.5.0+20261120.6 |

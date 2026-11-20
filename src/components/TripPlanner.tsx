@@ -605,6 +605,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }, [activePanel]);
 
   useEffect(() => {
+    if (!status) return;
+    const timer = window.setTimeout(() => setStatus(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [status]);
+
+  useEffect(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem(panelLayoutKey) ?? "null") as { left?: unknown; right?: unknown } | null;
       if (saved?.left === true) setLeftPanelCollapsed(true);
@@ -1622,7 +1628,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   }, []);
 
   return (
-    <main className="min-h-dvh overflow-x-hidden bg-background">
+    <main className="min-h-dvh overflow-x-clip bg-background">
       <header className="sticky top-0 z-40 text-primary-deep shadow-md">
         <div className="relative isolate overflow-hidden bg-primary">
           <Image src="/road-hero.png" alt="" fill priority sizes="100vw" className="object-cover object-center" />
@@ -1785,6 +1791,17 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           </nav>
         ) : null}
       </section>
+
+      {status && !error ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed bottom-24 left-1/2 z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 truncate rounded-full bg-primary-deep/90 px-3 py-1.5 text-xs font-bold text-white shadow-lg lg:bottom-6"
+        >
+          <Info className="mr-1.5 inline size-3.5" aria-hidden="true" />
+          {status}
+        </div>
+      ) : null}
 
       <AdSlot />
 
@@ -2028,16 +2045,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         </aside>
 
         <div className="flex min-h-0 flex-col gap-3 lg:col-start-2 lg:row-start-1">
-          {(error || status) && (
-            <div
-              className={`rounded-lg border p-3 text-sm font-bold leading-6 ${
-                error ? "border-danger/25 bg-red-50 text-danger" : "border-cyan/35 bg-primary-soft/40 text-primary-deep"
-              }`}
-            >
-              {error ? <AlertTriangle className="mr-2 inline size-4" aria-hidden="true" /> : <Info className="mr-2 inline size-4" aria-hidden="true" />}
-              {error || status}
+          {error ? (
+            <div role="alert" className="rounded-lg border border-danger/25 bg-red-50 px-3 py-2 text-xs font-bold leading-5 text-danger">
+              <AlertTriangle className="mr-1.5 inline size-3.5" aria-hidden="true" />
+              {error}
             </div>
-          )}
+          ) : null}
           <GoogleMapPanel
             browserKey={browserKey}
             mapId={mapId}
