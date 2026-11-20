@@ -2,6 +2,10 @@
 
 import {
   AlertTriangle,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   BedDouble,
   ArrowDown,
   ArrowUp,
@@ -83,6 +87,7 @@ const storageKey = "tikkie-trip-v1";
 const savedRouteLibraryKey = "tikkie-trip-library-v1";
 const cloudSyncPreferenceKey = "tikkie-trip-cloud-sync-preference-v1";
 const authReturnDraftKey = "tikkie-trip-auth-return-draft-v1";
+const panelLayoutKey = "tikkie-trip-panels-v1";
 const maxSavedRoutes = 25;
 const publicAppUrl = "https://trip-ev-plan.vercel.app/";
 const routeChargerPolylineLimit = 18000;
@@ -465,6 +470,9 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const [dayPlans, setDayPlans] = useState<DayPlan[]>([]);
   // null = whole trip, otherwise the day (0-based) shown in the summary, map and panels.
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  // Desktop only: side panels can fold into a slim rail so the map gets the space.
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
   const [chargers, setChargers] = useState<PlannerPlace[]>([]);
   const [chargerSearchPolyline, setChargerSearchPolyline] = useState("");
   const [chargerNotice, setChargerNotice] = useState("");
@@ -568,6 +576,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
   const enterTutorialStep = useCallback((id: string) => {
     setSummaryDetail(null);
+    setLeftPanelCollapsed(false);
+    setRightPanelCollapsed(false);
     setTutorialMapSearchOpen(id === "map-search" ? true : null);
 
     if (["trip-settings", "origin", "destination", "trip-schedule"].includes(id)) setActiveSetupPanel("trip");
@@ -592,6 +602,16 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   useEffect(() => {
     resultsScrollRef.current?.scrollTo({ top: 0 });
   }, [activePanel]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(panelLayoutKey) ?? "null") as { left?: unknown; right?: unknown } | null;
+      if (saved?.left === true) setLeftPanelCollapsed(true);
+      if (saved?.right === true) setRightPanelCollapsed(true);
+    } catch {
+      // Layout preference is optional.
+    }
+  }, []);
 
   useEffect(() => {
     setupScrollRef.current?.scrollTo({ top: 0 });
@@ -953,6 +973,20 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       setChargerNotice("รายการแนะนำจากเส้นทางก่อนหน้า กรุณาคำนวณเส้นทางใหม่หลังเลือกจุดชาร์จ");
     }
     setStatus(`เพิ่ม ${place.name} เป็นจุดแวะแล้ว`);
+  }
+
+  function setPanelCollapsed(side: "left" | "right", collapsed: boolean) {
+    const next = {
+      left: side === "left" ? collapsed : leftPanelCollapsed,
+      right: side === "right" ? collapsed : rightPanelCollapsed,
+    };
+    if (side === "left") setLeftPanelCollapsed(collapsed);
+    else setRightPanelCollapsed(collapsed);
+    try {
+      window.localStorage.setItem(panelLayoutKey, JSON.stringify(next));
+    } catch {
+      // Still works for this visit when storage is blocked.
+    }
   }
 
   function toggleWaypointOvernight(index: number) {
@@ -1736,9 +1770,52 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
       <AdSlot />
 
-      <div id="planner-workspace" className="mx-auto grid max-w-[1800px] gap-4 px-3 py-4 pb-28 sm:px-4 lg:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.22fr)] lg:items-start lg:px-6 lg:pb-8 xl:grid-cols-[minmax(270px,0.8fr)_minmax(0,1.65fr)_minmax(300px,0.9fr)]">
+      <div
+        id="planner-workspace"
+        className={`mx-auto grid max-w-[1800px] gap-4 px-3 py-4 pb-28 sm:px-4 lg:items-start lg:px-6 lg:pb-8 ${
+          leftPanelCollapsed
+            ? rightPanelCollapsed
+              ? "lg:grid-cols-[3.5rem_minmax(0,1fr)] xl:grid-cols-[3.5rem_minmax(0,1fr)_3.5rem]"
+              : "lg:grid-cols-[3.5rem_minmax(0,1fr)] xl:grid-cols-[3.5rem_minmax(0,1.65fr)_minmax(300px,0.9fr)]"
+            : rightPanelCollapsed
+              ? "lg:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.22fr)] xl:grid-cols-[minmax(270px,0.8fr)_minmax(0,1fr)_3.5rem]"
+              : "lg:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.22fr)] xl:grid-cols-[minmax(270px,0.8fr)_minmax(0,1.65fr)_minmax(300px,0.9fr)]"
+        }`}
+      >
         <aside className="grid h-auto min-h-0 min-w-0 grid-rows-[auto_auto] gap-3 overflow-visible lg:col-start-1 lg:row-start-1">
-          <nav data-tour="setup-menu" className="grid grid-cols-3 gap-1.5 rounded-2xl border border-border bg-surface-container-low p-1.5 shadow-sm" aria-label="เมนูตั้งค่าทริป">
+          {leftPanelCollapsed ? (
+            <div className="hidden flex-col items-center gap-1.5 rounded-2xl border border-border bg-surface-container-low p-1.5 shadow-sm lg:sticky lg:top-24 lg:flex">
+              <button
+                type="button"
+                onClick={() => setPanelCollapsed("left", false)}
+                title="แสดงแถบตั้งค่าทริป"
+                aria-label="แสดงแถบตั้งค่าทริป"
+                className="grid size-10 place-items-center rounded-xl bg-primary text-white hover:bg-primary-deep"
+              >
+                <PanelLeftOpen className="size-4" aria-hidden="true" />
+              </button>
+              {setupMenuItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => {
+                      setActiveSetupPanel(item.key);
+                      setPanelCollapsed("left", false);
+                    }}
+                    title={`เปิดเมนู${item.label}`}
+                    aria-label={`เปิดเมนู${item.label}`}
+                    className="grid size-10 place-items-center rounded-xl text-primary-deep hover:bg-secondary-container"
+                  >
+                    <Icon className="size-4" aria-hidden="true" />
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          <div className={`flex items-stretch gap-1.5 ${leftPanelCollapsed ? "lg:hidden" : ""}`}>
+          <nav data-tour="setup-menu" className="grid min-w-0 flex-1 grid-cols-3 gap-1.5 rounded-2xl border border-border bg-surface-container-low p-1.5 shadow-sm" aria-label="เมนูตั้งค่าทริป">
             {setupMenuItems.map((item) => {
               const Icon = item.icon;
               const selected = activeSetupPanel === item.key;
@@ -1760,8 +1837,18 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
               );
             })}
           </nav>
+          <button
+            type="button"
+            onClick={() => setPanelCollapsed("left", true)}
+            title="ซ่อนแถบตั้งค่าทริป เพื่อขยายแผนที่"
+            aria-label="ซ่อนแถบตั้งค่าทริป"
+            className="hidden w-11 shrink-0 place-items-center rounded-2xl border border-border bg-surface-container-low text-primary-deep shadow-sm hover:bg-secondary-container lg:grid"
+          >
+            <PanelLeftClose className="size-4" aria-hidden="true" />
+          </button>
+          </div>
 
-          <div ref={setupScrollRef} tabIndex={0} role="region" aria-label="รายละเอียดการตั้งค่าทริป" className="min-h-0 space-y-3 overflow-visible">
+          <div ref={setupScrollRef} tabIndex={0} role="region" aria-label="รายละเอียดการตั้งค่าทริป" className={`min-h-0 space-y-3 overflow-visible ${leftPanelCollapsed ? "lg:hidden" : ""}`}>
           <section data-tour="trip-settings" className={`${activeSetupPanel === "trip" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center gap-2">
               <Car className="size-5 text-cyan-deep" aria-hidden="true" />
@@ -2025,7 +2112,41 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         </div>
 
         <aside className="grid h-auto min-h-0 min-w-0 grid-rows-[auto_auto] gap-3 overflow-visible lg:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1">
-          <nav data-tour="results-menu" className="flex min-h-12 items-center gap-2 rounded-2xl border border-border bg-white p-1.5 shadow-sm" aria-label="เมนูผลลัพธ์ทริป">
+          {rightPanelCollapsed ? (
+            <div className="hidden flex-col items-center gap-1.5 rounded-2xl border border-border bg-white p-1.5 shadow-sm xl:sticky xl:top-24 xl:flex">
+              <button
+                type="button"
+                onClick={() => setPanelCollapsed("right", false)}
+                title="แสดงแถบผลลัพธ์ทริป"
+                aria-label="แสดงแถบผลลัพธ์ทริป"
+                className="grid size-10 place-items-center rounded-xl bg-primary text-white hover:bg-primary-deep"
+              >
+                <PanelRightOpen className="size-4" aria-hidden="true" />
+              </button>
+              {panelMenuItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => {
+                      setActivePanel(item.key);
+                      setPanelCollapsed("right", false);
+                    }}
+                    title={`เปิด${item.label}`}
+                    aria-label={`เปิด${item.label}`}
+                    className="relative grid size-10 place-items-center rounded-xl text-primary-deep hover:bg-secondary-container"
+                  >
+                    <Icon className="size-4" aria-hidden="true" />
+                    {typeof item.count === "number" && item.count > 0 ? (
+                      <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-yellow px-1 text-[9px] font-black text-primary-deep">{item.count}</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          <nav data-tour="results-menu" className={`flex min-h-12 items-center gap-2 rounded-2xl border border-border bg-white p-1.5 shadow-sm ${rightPanelCollapsed ? "xl:hidden" : ""}`} aria-label="เมนูผลลัพธ์ทริป">
             <span className="grid size-9 shrink-0 place-items-center rounded-md bg-yellow text-primary-deep">
               <ActivePanelIcon className="size-4" aria-hidden="true" />
             </span>
@@ -2043,9 +2164,18 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                 ))}
               </select>
             </label>
+            <button
+              type="button"
+              onClick={() => setPanelCollapsed("right", true)}
+              title="ซ่อนแถบผลลัพธ์ทริป เพื่อขยายแผนที่"
+              aria-label="ซ่อนแถบผลลัพธ์ทริป"
+              className="hidden size-10 shrink-0 place-items-center rounded-xl border border-border bg-surface-container-low text-primary-deep hover:bg-secondary-container xl:grid"
+            >
+              <PanelRightClose className="size-4" aria-hidden="true" />
+            </button>
           </nav>
 
-          <div ref={resultsScrollRef} tabIndex={0} role="region" aria-label="รายละเอียดผลลัพธ์ทริป" className="min-h-0 space-y-3 overflow-visible">
+          <div ref={resultsScrollRef} tabIndex={0} role="region" aria-label="รายละเอียดผลลัพธ์ทริป" className={`min-h-0 space-y-3 overflow-visible ${rightPanelCollapsed ? "xl:hidden" : ""}`}>
           <section data-tour={activePanel === "itinerary" ? "itinerary-panel" : "route-panel"} className={`${activePanel === "route" || activePanel === "itinerary" ? "" : "hidden"} rounded-lg border border-border bg-white p-4 shadow-sm`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-black text-primary-deep">{activePanel === "itinerary" ? "รายการเดินทาง" : "วางแผนเส้นทาง"}</h2>
