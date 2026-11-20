@@ -66,3 +66,10 @@
 - [x] Mutation check: แก้ buffer แบตเตอรี่และ user id ของ cloud-routes ชั่วคราว พบ 5 tests fail ตามคาด แล้วคืนค่า source
 - [x] `npm run check` (lint + test + build) ผ่าน
 - [ ] ยังไม่มี component/UI tests และ e2e tests; ยังไม่มี CI workflow
+
+## Next.js 16.4.6 security patch (20 พฤศจิกายน 2026, branch `fix/next-16.4.6`)
+
+- [x] อัปเดต `next` 16.4.3 -> 16.4.6 ปิด advisory moderate 7 รายการ (ช่วง 16.0.0-16.4.4) รวม SVG rejection bypass ใน image optimization ซึ่งแอปใช้ผ่าน `next/image`; รายการอื่นเกี่ยวกับ `use cache`/`unstable_cache`/Edge runtime ซึ่ง grep ไม่พบใน `src/`
+- [x] lockfile เปลี่ยนเฉพาะ `next`/`@next/*` และ metadata ของ optional dependency `@tailwindcss/oxide-wasm32-wasi`
+- [x] `npm audit --omit=dev`: 0 vulnerabilities
+- หมายเหตุ: working copy ย้ายไป path ที่มี `#` ซึ่งทำให้ Vitest และ Turbopack/Tailwind ใช้ไม่ได้ในเครื่อง; `npm run check` จึงรันใน git worktree ที่ path ไม่มี `#`
