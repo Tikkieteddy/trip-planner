@@ -3,7 +3,7 @@
 อัปเดต 28 ตุลาคม 2026 | เรียงตามความเสี่ยงและ dependency
 
 1. **Inspect environment setup without exposing secrets.** Compare Vercel/Auth0/Upstash required names with SDK and deployment configuration; report presence only, never values.
-2. **Run core route E2E with a test account.** Test one-way and round-trip with map, itinerary, battery summary and charger suggestions. Use a small route and observe Google quota.
+2. **Run core route E2E with a test account.** Test one-way and round-trip with map, itinerary, battery summary and charger suggestions. Use a small route and observe Google quota. One-way done 2026-11-20 on Production (see HANDOVER_VALIDATION.md): works, but charger kW display mismatch and chargers clustered near the origin. Remaining: round-trip, waypoints, long multi-segment route.
 3. **Prove Cloud Sync isolation and redirect recovery.** Save, reload, logout/login, second-device and cross-user denial. Done 2026-11-20 on Production: login, cloud read, sync and logout (see HANDOVER_VALIDATION.md). Remaining: save a new route, second device, second account.
 4. **Extend the test suite.** Vitest now covers schemas, polyline, battery, format, Google client and API handlers (2026-10-29). CI runs `npm run check` on every PR (2026-11-20). Next: component tests for planner state and an e2e smoke test.
 5. **Phone QA the complete planner and tutorial.** Check responsive station list, sticky menu, map search collapse, share, app links and footer tooltip.
