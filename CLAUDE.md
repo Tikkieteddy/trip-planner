@@ -104,7 +104,7 @@ Request flow: browser -> `/api/*` route handler -> zod validation -> Google (ser
 
 - Battery figures are estimates from distance and user-entered km/kWh, not vehicle telemetry or a guaranteed range.
 - Charger data comes from Google Places; no real-time connector availability.
-- Tests cover libs and API handlers only: no UI/component or end-to-end tests, and no CI workflow in the repo.
+- Tests cover libs and API handlers only: no UI/component or end-to-end tests. CI (`.github/workflows/ci.yml`) runs `npm run check` on every PR and push to `main`; branch protection is not configured.
 - ESLint ignores `src/**/*.ts(x)`; TypeScript errors are caught only by `npm run build`.
 - Auth0, Redis, Google quotas and Vercel env values are not verified end-to-end.
 - Legacy Clerk migration path in `cloud-routes.ts` is unverified with real accounts.

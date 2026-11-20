@@ -73,3 +73,9 @@
 - [x] lockfile เปลี่ยนเฉพาะ `next`/`@next/*` และ metadata ของ optional dependency `@tailwindcss/oxide-wasm32-wasi`
 - [x] `npm audit --omit=dev`: 0 vulnerabilities
 - หมายเหตุ: working copy ย้ายไป path ที่มี `#` ซึ่งทำให้ Vitest และ Turbopack/Tailwind ใช้ไม่ได้ในเครื่อง; `npm run check` จึงรันใน git worktree ที่ path ไม่มี `#`
+
+## CI workflow (20 พฤศจิกายน 2026, branch `ci/github-actions`)
+
+- [x] เพิ่ม `.github/workflows/ci.yml`: Node 24 (ตรงกับ Vercel), `npm ci` แล้ว `npm run check` ทุก PR และทุก push เข้า `main`; `permissions: contents: read`; ไม่ใช้ secrets
+- [x] Production ก่อนงานนี้: footer `V.1.2.5+20261120.1`, Vercel Ready, endpoint หลักตอบตามคาด
+- [ ] ยังไม่ได้ตั้ง branch protection ให้ CI เป็น required check (ต้องตั้งใน GitHub settings โดยเจ้าของ)
