@@ -35,7 +35,7 @@ export const plannerPlaceSchema = z.object({
         .optional(),
     })
     .optional(),
-  source: z.enum(["google", "map_click"]),
+  source: z.enum(["google", "map_click", "curated"]),
   note: z.string().max(600).optional(),
   stopMinutes: z.number().int().min(0).max(600).optional(),
   chargeTargetPercent: z.number().min(0).max(100).optional(),

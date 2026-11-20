@@ -44,6 +44,7 @@ import { connectorLabel, connectorOptions, nearbyActivityTypes, tourismCategorie
 import { estimateBatteryByLegs, batterySummaryText } from "@/lib/battery";
 import { postJson } from "@/lib/client-api";
 import { formatDistance, formatDuration, formatKwh, formatPercent, getDepartureIso } from "@/lib/format";
+import { findCuratedChargers, mergeCuratedChargers } from "@/lib/curated-chargers";
 import { decodePolyline, interleave, splitPolylineByDistance } from "@/lib/polyline";
 import { addDaysToIsoDate, combineDayRoutes, maxStopsPerDay, maxTripDays, splitStopsIntoDays, waypointDayIndexes } from "@/lib/trip-days";
 import { savedRouteLibrarySchema, savedRouteSchema, savedTripSchema } from "@/lib/schemas";
@@ -905,7 +906,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     return [
       { label: "ใกล้ทาง", value: distanceText },
       { label: "kW", value: speedText },
-      { label: "คะแนน", value: ratingText },
+      place.source === "curated" ? { label: "แหล่ง", value: "ข้อมูลสำรวจเอง" } : { label: "คะแนน", value: ratingText },
     ];
   }
 
@@ -1141,8 +1142,22 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   /** Find chargers along one route (one day). Returns results instead of setting state. */
   async function findChargersForRoute(encodedPolyline: string, stops: PlannerPlace[]) {
     const routeChargerResult = await searchRouteChargersByPolyline(encodedPolyline);
+    // Hand-checked stations (src/data/curated-chargers.ts) fill gaps in Google results.
+    const curatedChargers = findCuratedChargers({
+      path: decodePolyline(encodedPolyline),
+      stops: stops.map((stop) => stop.location),
+      connectorType: settings.connectorType,
+      minChargerKw: settings.minChargerKw,
+      openNowOnly: settings.openNowOnly,
+      minRating: settings.minRating,
+    });
+    const curatedNotice = (places: PlannerPlace[]) => {
+      const count = places.filter((place) => place.source === "curated").length;
+      return count > 0 ? `รวมจุดชาร์จจากข้อมูลสำรวจเอง ${count} แห่ง (ไม่มีสถานะเรียลไทม์)` : "";
+    };
 
     if (routeChargerResult.places.length > 0) {
+      const places = mergeCuratedChargers(routeChargerResult.places, curatedChargers);
       const segmentedNotice =
         routeChargerResult.segmentCount > 1
           ? `ระบบแบ่งค้นหาสถานีชาร์จตามแนวเส้นทางเป็น ${routeChargerResult.segmentCount} ช่วง`
@@ -1151,14 +1166,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         routeChargerResult.failedCount > 0 ? ` บางช่วงค้นหาไม่สำเร็จ ${routeChargerResult.failedCount} ช่วง` : "";
 
       return {
-        places: routeChargerResult.places,
-        notice: `${segmentedNotice}${partialNotice}`.trim(),
-        status: `พบสถานีชาร์จตามแนวเส้นทาง ${routeChargerResult.places.length} แห่ง`,
+        places,
+        notice: [`${segmentedNotice}${partialNotice}`.trim(), curatedNotice(places)].filter(Boolean).join(" · "),
+        status: `พบสถานีชาร์จตามแนวเส้นทาง ${places.length} แห่ง`,
       };
     }
 
     if (encodedPolyline.length > routeChargerPolylineLimit) {
-      const fallbackChargers = await searchNearbyChargersFallback(getFallbackChargerCenters(stops));
+      const fallbackChargers = mergeCuratedChargers(await searchNearbyChargersFallback(getFallbackChargerCenters(stops)), curatedChargers);
 
       return {
         places: fallbackChargers,
@@ -1167,6 +1182,14 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
           fallbackChargers.length > 0
             ? `พบสถานีชาร์จสำรอง ${fallbackChargers.length} แห่งใกล้จุดสำคัญของทริป`
             : "คำนวณเส้นทางสำเร็จ แต่ยังไม่พบสถานีชาร์จใกล้จุดสำคัญของทริป",
+      };
+    }
+
+    if (curatedChargers.length > 0) {
+      return {
+        places: curatedChargers,
+        notice: curatedNotice(curatedChargers),
+        status: `Google Places ไม่พบสถานีชาร์จ ใช้ข้อมูลสำรวจเอง ${curatedChargers.length} แห่ง`,
       };
     }
 

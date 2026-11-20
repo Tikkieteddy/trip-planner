@@ -14,6 +14,7 @@
 | Long-polyline segmentation | `polyline.ts`, planner | Implemented in source | Places API | Route coverage/result overlap on very long trips | P2 |
 | EV Station PluZ supplemental query | `provider` request mode | Implemented in source | Google Places data | Brand precision/duplicates not externally verified | P2 |
 | Charger filters/sort/app links/badges | `TripPlanner.tsx`, `place-types.ts` | Implemented in source | provider metadata | Verify each known brand link and mobile layout | P2 |
+| Curated chargers (bundled data) | `data/curated-chargers.ts`, `lib/curated-chargers.ts` (v1.6.0) | Needs Verification | none (static) | 50 stations checked on Google Maps 2026-11-20 for Salaya, Lopburi and Phetchabun; merged into route charger results; unit-tested only, not yet checked in the live UI; no real-time status | P2 |
 | Nearby categories incl. fuel/rest stop | `place-types.ts`, planner, Places nearby | Implemented in source | Google Places | Store/brand coverage varies; verify PTT in chosen area | P1 |
 | Battery profile and per-leg estimate | `lib/battery.ts`, planner | Implemented in source | user-provided vehicle inputs | Not vehicle telemetry; test edge cases | P2 |
 | Route local save/import/export/share | planner, schemas | Implemented in source | Auth0 gate for actions | Browser persistence and share round-trip | P1 |
