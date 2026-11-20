@@ -4,6 +4,7 @@
 
 | Date | Commit | Evidence-backed summary |
 |---|---|---|
+| 2026-11-20 | branch `feature/multi-day-tutorial` | Tutorial: two multi-day steps (overnight button, day tabs), fix outdated day-count text; inline hint in the route panel; version 1.7.0+20261120.11 |
 | 2026-11-20 | branch `fix/nearby-categories` | Fix nearby categories: worship used a type Google rejects, viewpoint duplicated tourism, shopping returned unrelated places; nature adds hiking/garden; tests; version 1.6.3+20261120.10 |
 | 2026-11-20 | branch `fix/day-charger-limit` (2) | Fix header not staying pinned (overflow-x-hidden -> clip); status messages become a small auto-hiding notice; version 1.6.2+20261120.9 |
 | 2026-11-20 | branch `fix/day-charger-limit` | Fix: saving a multi-day trip failed when a day had more than 20 chargers (Google + curated); caps now 20 + curated per day, 14x20 + curated per trip; version 1.6.1+20261120.8 |

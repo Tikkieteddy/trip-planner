@@ -23,7 +23,7 @@
 - Nearby places: tourism, nature, viewpoint, worship, museum, cafe, restaurant, hotel, gas station, rest stop, shopping; query limit/radius applies.
 - User routes: local browser storage; opt-in Cloud Sync stored per Auth0 subject in Redis; import/export JSON after sign-in.
 - CMS: responsive ad scripts and enabled flag; hidden public ad area when config disabled.
-- Tutorial: first-use/on-demand guide with 27 steps per current component.
+- Tutorial: first-use/on-demand guide with 29 steps per current component (multi-day steps added in v1.7.0).
 
 ## Exclusions / limitations
 
