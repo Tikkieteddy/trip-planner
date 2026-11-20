@@ -111,3 +111,91 @@ export function splitEncodedPolyline(encoded: string, maxLength: number, maxSegm
 
   return segments;
 }
+
+const earthRadiusMeters = 6371000;
+
+function distanceMeters(from: LatLng, to: LatLng) {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const latitudeDelta = toRadians(to.latitude - from.latitude);
+  const longitudeDelta = toRadians(to.longitude - from.longitude);
+  const halfChord =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(toRadians(from.latitude)) * Math.cos(toRadians(to.latitude)) * Math.sin(longitudeDelta / 2) ** 2;
+
+  return 2 * earthRadiusMeters * Math.asin(Math.min(1, Math.sqrt(halfChord)));
+}
+
+function splitPointsEvenly(points: LatLng[], cumulative: number[], segmentCount: number) {
+  const total = cumulative.at(-1) ?? 0;
+  const segments: LatLng[][] = [];
+  let startIndex = 0;
+
+  for (let segment = 1; segment <= segmentCount; segment += 1) {
+    let endIndex = points.length - 1;
+
+    if (segment < segmentCount) {
+      const boundary = (total * segment) / segmentCount;
+      endIndex = cumulative.findIndex((value, index) => index > startIndex && value >= boundary);
+      if (endIndex < 0 || endIndex >= points.length - 1) break;
+    }
+
+    segments.push(points.slice(startIndex, endIndex + 1));
+    startIndex = endIndex;
+    if (endIndex === points.length - 1) break;
+  }
+
+  if (startIndex < points.length - 1) segments.push(points.slice(startIndex));
+  return segments;
+}
+
+/**
+ * Split a route into segments of roughly equal road distance so that a
+ * search-along-route query covers the whole trip, not just its start.
+ * Segments share their boundary point and each encoded segment stays within
+ * `maxLength` characters (Google's request limit). Distance alone never asks
+ * for more than `maxDistanceSegments` parts (each part costs a Places call);
+ * more parts, up to `maxSegments`, are used only to fit `maxLength`. Falls
+ * back to the length-based split when even `maxSegments` parts are too long.
+ */
+export function splitPolylineByDistance(
+  encoded: string,
+  {
+    targetSegmentKm,
+    maxSegments,
+    maxLength,
+    maxDistanceSegments = maxSegments,
+  }: { targetSegmentKm: number; maxSegments: number; maxLength: number; maxDistanceSegments?: number },
+) {
+  const points = decodePolyline(encoded);
+  if (points.length < 3) return splitEncodedPolyline(encoded, maxLength, maxSegments);
+
+  const cumulative = [0];
+  for (let index = 1; index < points.length; index += 1) {
+    cumulative.push(cumulative[index - 1] + distanceMeters(points[index - 1], points[index]));
+  }
+
+  const totalKm = (cumulative.at(-1) ?? 0) / 1000;
+  const byDistance = Math.max(1, Math.ceil(totalKm / targetSegmentKm));
+
+  for (let count = Math.min(maxSegments, maxDistanceSegments, byDistance); count <= maxSegments; count += 1) {
+    if (count === 1 && encoded.length <= maxLength) return [encoded];
+    const segments = splitPointsEvenly(points, cumulative, count).map(encodePolyline);
+    if (segments.every((segment) => segment.length <= maxLength)) return segments;
+  }
+
+  return splitEncodedPolyline(encoded, maxLength, maxSegments);
+}
+
+/** Round-robin merge: first item of each list, then the second of each, and so on. */
+export function interleave<T>(lists: T[][]): T[] {
+  const longest = Math.max(0, ...lists.map((list) => list.length));
+  const merged: T[] = [];
+
+  for (let index = 0; index < longest; index += 1) {
+    for (const list of lists) {
+      if (index < list.length) merged.push(list[index]);
+    }
+  }
+
+  return merged;
+}

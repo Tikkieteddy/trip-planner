@@ -39,9 +39,9 @@ import { connectorLabel, connectorOptions, nearbyActivityTypes, tourismCategorie
 import { estimateBatteryByLegs, batterySummaryText } from "@/lib/battery";
 import { postJson } from "@/lib/client-api";
 import { formatDistance, formatDuration, formatKwh, formatPercent, getDepartureIso } from "@/lib/format";
-import { decodePolyline, splitEncodedPolyline } from "@/lib/polyline";
+import { decodePolyline, interleave, splitPolylineByDistance } from "@/lib/polyline";
 import { savedRouteLibrarySchema, savedRouteSchema, savedTripSchema } from "@/lib/schemas";
-import type { BatteryLegEstimate, LatLng, PlannerPlace, RouteResult, SavedRoute, SavedTrip, TourismCategory, TripSettings } from "@/types/trip";
+import type { BatteryLegEstimate, ConnectorAggregation, LatLng, PlannerPlace, RouteResult, SavedRoute, SavedTrip, TourismCategory, TripSettings } from "@/types/trip";
 import { GoogleMapPanel } from "@/components/GoogleMapPanel";
 import { PlaceSearchInput } from "@/components/PlaceSearchInput";
 import { AdSlot } from "@/components/AdSlot";
@@ -85,6 +85,10 @@ const maxSavedRoutes = 25;
 const publicAppUrl = "https://trip-ev-plan.vercel.app/";
 const routeChargerPolylineLimit = 18000;
 const routeChargerMaxSegments = 10;
+// Search chargers in parts of about this road distance so results cover the whole route.
+// Capped because each part costs one Places request per provider.
+const routeChargerSegmentKm = 40;
+const routeChargerMaxDistanceSegments = 6;
 const earthRadiusMeters = 6371000;
 
 type CloudSyncPreference = "undecided" | "enabled" | "local";
@@ -341,7 +345,11 @@ function PlaceListCard({
   metricValue?: string;
   recommendationBadges?: RecommendationBadge[];
 }) {
-  const connectorInfo = place.evChargeOptions?.connectorAggregation?.[0];
+  // Show the fastest connector group so this matches the kW used for badges and sorting.
+  const connectorInfo = place.evChargeOptions?.connectorAggregation?.reduce<ConnectorAggregation | undefined>(
+    (best, item) => (!best || (item.maxChargeRateKw ?? 0) > (best.maxChargeRateKw ?? 0) ? item : best),
+    undefined,
+  );
   const provider = recommendationBadges ? chargerApps.find((app) => app.pattern.test(place.name)) : undefined;
 
   return (
@@ -982,7 +990,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
 
   async function searchRouteChargersByPolyline(encodedPolyline: string) {
     const maxResultCount = Math.max(1, Math.min(20, settings.maxStops + 4));
-    const segments = splitEncodedPolyline(encodedPolyline, routeChargerPolylineLimit, routeChargerMaxSegments);
+    const segments = splitPolylineByDistance(encodedPolyline, {
+      targetSegmentKm: routeChargerSegmentKm,
+      maxSegments: routeChargerMaxSegments,
+      maxDistanceSegments: routeChargerMaxDistanceSegments,
+      maxLength: routeChargerPolylineLimit,
+    });
     const perSegmentResultCount = Math.max(3, Math.min(10, Math.ceil(maxResultCount / segments.length) + 2));
     const providers = settings.includeEvStationPluz ? (["all", "ev-station-pluz"] as const) : (["all"] as const);
     const results = await Promise.allSettled(
@@ -999,7 +1012,17 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         }),
       )),
     );
-    const places = results.flatMap((result) => (result.status === "fulfilled" ? result.value.places : []));
+    const placesFor = (index: number) => {
+      const result = results[index];
+      return result?.status === "fulfilled" ? result.value.places : [];
+    };
+    // Take results from every segment in turn (and every provider within a segment)
+    // so the cap does not fill up with stations near the start of the route.
+    const places = interleave(
+      segments.map((_, segmentIndex) =>
+        interleave(providers.map((_, providerIndex) => placesFor(segmentIndex * providers.length + providerIndex))),
+      ),
+    );
     const failedCount = results.filter((result) => result.status === "rejected").length;
 
     return {
@@ -1020,7 +1043,7 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
       if (routeChargerResult.places.length > 0) {
         const segmentedNotice =
           routeChargerResult.segmentCount > 1
-            ? `เส้นทางยาว ระบบแบ่งค้นหาสถานีชาร์จตามแนวเส้นทางเป็น ${routeChargerResult.segmentCount} ช่วง`
+            ? `ระบบแบ่งค้นหาสถานีชาร์จตามแนวเส้นทางเป็น ${routeChargerResult.segmentCount} ช่วง`
             : "";
         const partialNotice =
           routeChargerResult.failedCount > 0 ? ` บางช่วงค้นหาไม่สำเร็จ ${routeChargerResult.failedCount} ช่วง` : "";
@@ -1499,20 +1522,11 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
         </div>
       </header>
 
-      <section className="relative mx-auto mt-3 w-full max-w-[1800px] px-3 sm:px-4 lg:px-6" aria-labelledby="hero-title">
+      <section className="relative mx-auto mt-3 w-full max-w-[1800px] px-3 sm:px-4 lg:px-6" aria-label="สรุปทริป">
         <div className="relative isolate overflow-hidden rounded-2xl bg-primary shadow-lg">
           <Image src="/road-hero.png" alt="ถนนคดเคี้ยวผ่านหุบเขาเขียวในแสงเช้า" fill priority sizes="100vw" className="object-cover object-center" />
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(3,55,45,0.95)_0%,rgba(3,55,45,0.65)_50%,rgba(3,55,45,0.40)_100%)]" />
-          <div className="relative flex min-h-[300px] flex-col justify-between gap-5 p-5 text-white sm:min-h-[330px] sm:p-7 lg:min-h-[360px] lg:p-9">
-            <div className="max-w-3xl">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-secondary-container backdrop-blur">
-                <Zap className="size-3.5" aria-hidden="true" />
-                วางแผนเส้นทางรถยนต์ไฟฟ้า
-              </span>
-              <h2 id="hero-title" className="mt-3 text-2xl font-black leading-tight sm:text-[30px]">Tikkie Trip – EV Planner</h2>
-              <p className="mt-1 max-w-xl text-sm font-semibold leading-6 text-white/85">
-                วางแผนการเดินทาง ค้นหาสถานีชาร์จ และประเมินแบตเตอรี่จากข้อมูลรถของคุณ
-              </p>
+          <div className="relative flex flex-col gap-2 p-3 text-white sm:flex-row sm:items-stretch sm:gap-3 sm:p-4 lg:p-5">
               <button
                 type="button"
                 onClick={() => {
@@ -1520,13 +1534,12 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   document.getElementById("planner-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}
                 title="ไปยังแบบฟอร์มตั้งค่าทริป"
-                className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-secondary-container px-4 text-sm font-black text-primary hover:bg-white"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-secondary-container px-4 text-sm font-black text-primary hover:bg-white"
               >
                 <Navigation className="size-4" aria-hidden="true" />
                 เริ่มวางแผนทริป
               </button>
-            </div>
-            <div data-tour="hero-summary" className="grid grid-cols-3 gap-2 rounded-xl border border-white/60 bg-white/90 p-2 text-primary-deep shadow-sm backdrop-blur sm:max-w-3xl sm:gap-3 sm:p-3">
+            <div data-tour="hero-summary" className="grid min-w-0 flex-1 grid-cols-3 gap-2 rounded-xl border border-white/60 bg-white/90 p-2 text-primary-deep shadow-sm backdrop-blur sm:max-w-3xl sm:gap-3 sm:p-3">
               <div className="flex min-w-0 items-center gap-2 px-1 sm:px-2">
                 <Navigation className="size-4 shrink-0 text-secondary" aria-hidden="true" />
                 <div className="min-w-0">
