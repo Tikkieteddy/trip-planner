@@ -728,10 +728,13 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
   const terminalDestination = settings.tripType === "round-trip" ? origin : destination;
 
   // Days as currently planned (from overnight stops), available before calculating.
-  const plannedDays = useMemo(
-    () => splitStopsIntoDays([origin, ...routeWaypoints, terminalDestination].filter((place): place is PlannerPlace => Boolean(place))),
-    [origin, routeWaypoints, terminalDestination],
-  );
+  const plannedDays = useMemo(() => {
+    const days = splitStopsIntoDays([origin, ...routeWaypoints, terminalDestination].filter((place): place is PlannerPlace => Boolean(place)));
+    // The last stop is an overnight stop and the next day's destination is not picked yet.
+    const lastStop = routeWaypoints[routeWaypoints.length - 1];
+    if (!terminalDestination && lastStop?.overnight) days.push([lastStop]);
+    return days;
+  }, [origin, routeWaypoints, terminalDestination]);
   const plannedDayCount = Math.min(maxTripDays, Math.max(1, plannedDays.length));
   const waypointDays = useMemo(() => waypointDayIndexes(waypoints), [waypoints]);
   const destinationDay = waypoints.filter((waypoint) => waypoint.overnight).length;
@@ -1008,13 +1011,46 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
     }
 
     setError("");
+    // Undoing a destination overnight (one-way, next destination not picked yet): it becomes the destination again.
+    if (!overnight && !destination && settings.tripType !== "round-trip" && index === waypoints.length - 1) {
+      setWaypoints((current) => current.slice(0, -1));
+      setDestination({ ...place, overnight: undefined });
+      clearComputedData();
+      setStatus(`ยกเลิกการพักค้างคืน ${place.name} กลับเป็นปลายทางแล้ว`);
+      return;
+    }
     setWaypoints((current) => current.map((waypoint, currentIndex) => (currentIndex === index ? { ...waypoint, overnight: overnight || undefined } : waypoint)));
     clearComputedData();
     setStatus(overnight ? `ตั้ง ${place.name} เป็นจุดพักค้างคืนแล้ว วันถัดไปจะเริ่มจากที่นี่` : `ยกเลิกการพักค้างคืนที่ ${place.name} แล้ว`);
   }
 
+  function stayOvernightAtDestination() {
+    if (!destination) return;
+
+    if (plannedDayCount >= maxTripDays) {
+      setError(`ทริปยาวได้สูงสุด ${maxTripDays} วัน`);
+      return;
+    }
+    if (waypoints.length >= settings.maxStops) {
+      setError(`จุดแวะเต็มแล้ว (${settings.maxStops} จุด) เพิ่มจำนวนจุดแวะสูงสุดได้ที่เมนูตัวกรอง`);
+      return;
+    }
+
+    setError("");
+    setWaypoints((current) => [...current, { ...destination, overnight: true, stopMinutes: destination.stopMinutes ?? 45 }]);
+    setDestination(null);
+    setSelectedDay(null);
+    clearComputedData();
+    setActiveSetupPanel("trip");
+    setStatus(`พักค้างคืนที่ ${destination.name} แล้ว เลือกปลายทางของวันถัดไป`);
+  }
+
   function toggleDestinationOvernight() {
     if (!destination) return;
+    if (settings.tripType !== "round-trip") {
+      stayOvernightAtDestination();
+      return;
+    }
     const overnight = !destination.overnight;
 
     if (overnight && plannedDayCount >= maxTripDays) {
@@ -2309,20 +2345,38 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                             </p>
                           ) : null}
                         </div>
-                        {settings.tripType === "round-trip" ? (
-                          <button
-                            type="button"
-                            onClick={toggleDestinationOvernight}
-                            aria-pressed={Boolean(destination.overnight)}
-                            title={destination.overnight ? "ยกเลิกพักค้างคืนที่ปลายทาง" : "พักค้างคืนที่ปลายทางก่อนเดินทางกลับ"}
-                            aria-label="พักค้างคืนที่ปลายทาง"
-                            className={`grid size-8 shrink-0 place-items-center rounded-md border ${destination.overnight ? "border-primary bg-primary text-white" : "border-border text-primary"}`}
-                          >
-                            <BedDouble className="size-4" />
-                          </button>
-                        ) : null}
+                        <button
+                          type="button"
+                          onClick={toggleDestinationOvernight}
+                          aria-pressed={settings.tripType === "round-trip" ? Boolean(destination.overnight) : false}
+                          title={
+                            settings.tripType === "round-trip"
+                              ? destination.overnight
+                                ? "ยกเลิกพักค้างคืนที่ปลายทาง"
+                                : "พักค้างคืนที่ปลายทางก่อนเดินทางกลับ"
+                              : "พักค้างคืนที่นี่ แล้วเลือกปลายทางของวันถัดไป"
+                          }
+                          aria-label="พักค้างคืนที่ปลายทาง"
+                          className={`grid size-8 shrink-0 place-items-center rounded-md border ${destination.overnight ? "border-primary bg-primary text-white" : "border-border text-primary"}`}
+                        >
+                          <BedDouble className="size-4" />
+                        </button>
                       </div>
                     </div>
+                  ) : waypoints.length > 0 && waypoints[waypoints.length - 1].overnight ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveSetupPanel("trip");
+                        setLeftPanelCollapsed(false);
+                        document.querySelector<HTMLInputElement>('[data-tour="destination"] input')?.focus();
+                      }}
+                      title="ไปที่ช่องปลายทางเพื่อเลือกจุดหมายของวันถัดไป"
+                      className="w-full rounded-lg border border-dashed border-primary/40 bg-primary-soft/30 p-3 text-left text-sm font-bold text-primary-deep hover:border-primary"
+                    >
+                      เลือกปลายทางของวันที่ {waypointDays[waypointDays.length - 1] + 2}
+                      <span className="mt-0.5 block text-xs font-semibold text-muted">พิมพ์ในช่อง ปลายทาง แล้วกดคำนวณเส้นทาง</span>
+                    </button>
                   ) : (
                     <p className="rounded-lg border border-dashed border-border p-3 text-sm font-bold text-muted">ยังไม่ได้เลือกปลายทาง</p>
                   )}
@@ -2331,9 +2385,8 @@ export function TripPlanner({ browserKey, mapId }: TripPlannerProps) {
                   <p className="mt-3 flex items-start gap-2 rounded-lg border border-dashed border-primary/30 bg-primary-soft/30 p-2.5 text-xs font-semibold leading-5 text-primary-deep">
                     <BedDouble className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                     <span>
-                      {waypoints.length > 0
-                        ? "อยากแบ่งเป็นหลายวัน? กดปุ่มรูปเตียงที่จุดแวะที่จะพักค้างคืน วันถัดไปจะเริ่มจากจุดนั้น"
-                        : "อยากแบ่งเป็นหลายวัน? เพิ่มจุดแวะที่จะพักค้างคืน (เช่น โรงแรม) แล้วกดปุ่มรูปเตียงที่จุดนั้น"}
+                      อยากแบ่งเป็นหลายวัน? กดปุ่มรูปเตียงที่จุดแวะหรือปลายทางที่จะพักค้างคืน วันถัดไปจะเริ่มจากจุดนั้น
+                      {settings.tripType === "round-trip" ? "" : " (กดที่ปลายทาง แล้วเลือกปลายทางของวันถัดไป)"}
                     </span>
                   </p>
                 ) : null}
