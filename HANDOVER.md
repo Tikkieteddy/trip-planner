@@ -1,6 +1,6 @@
 # Handover: Tikkie Trip – EV Planner
 
-อัปเดต 20 พฤศจิกายน 2026 | Version 1.7.0 | Git branch `main`
+อัปเดต 20 พฤศจิกายน 2026 | Version 1.8.1 | Git branch `main`
 
 ## Executive Summary
 
@@ -14,7 +14,7 @@
 | Authentication | Auth0 Next.js SDK; cloud route endpoints อ่าน `session.user.sub` |
 | Persistent storage | Upstash Redis REST; ไม่พบ relational database หรือ migration |
 | Ads | CMS `/cms`, admin password session และ Redis config; script ถูกส่งไปแสดงใน client เมื่อเปิด |
-| Build | `1.7.0`, build id `20261120.11` (Production serves `1.6.3+20261120.10`, verified 20 Nov 2026) |
+| Build | `1.8.1`, build id `20261121.2` (Production serves `1.8.0+20261121.1`, verified 20 Nov 2026) |
 
 ## สถานะโดยย่อ
 
