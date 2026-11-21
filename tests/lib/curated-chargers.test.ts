@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { curatedChargers, type CuratedCharger } from "@/data/curated-chargers";
+import { curatedChargerProvinces, curatedChargers, type CuratedCharger } from "@/data/curated-chargers";
 import {
   curatedChargerToPlace,
   distanceToPathKm,
@@ -11,9 +11,9 @@ import { savedTripSchema } from "@/lib/schemas";
 import type { PlannerPlace } from "@/types/trip";
 
 const sample: CuratedCharger[] = [
-  { id: "near-route", name: "EV Station PluZ ทดสอบ", brand: "PTT EV Station PluZ", zone: "salaya", latitude: 14.0, longitude: 100.51, maxChargeRateKw: 120, connectors: ["EV_CONNECTOR_TYPE_CCS_COMBO_2"], open24h: true },
-  { id: "near-stop", name: "PEA VOLTA ทดสอบ", brand: "PEA VOLTA", zone: "salaya", latitude: 15.1, longitude: 100.6 },
-  { id: "far", name: "ไกลเกิน", brand: "X", zone: "salaya", latitude: 17.5, longitude: 99.0 },
+  { id: "near-route", name: "EV Station PluZ ทดสอบ", brand: "PTT EV Station PluZ", province: "ทดสอบ", latitude: 14.0, longitude: 100.51, maxChargeRateKw: 120, connectors: ["EV_CONNECTOR_TYPE_CCS_COMBO_2"], open24h: true },
+  { id: "near-stop", name: "PEA VOLTA ทดสอบ", brand: "PEA VOLTA", province: "ทดสอบ", latitude: 15.1, longitude: 100.6 },
+  { id: "far", name: "ไกลเกิน", brand: "X", province: "ทดสอบ", latitude: 17.5, longitude: 99.0 },
 ];
 const path = [
   { latitude: 13.8, longitude: 100.5 },
@@ -32,20 +32,21 @@ describe("bundled curated chargers", () => {
       expect(charger.longitude).toBeLessThan(106);
       expect(charger.name.length).toBeGreaterThan(0);
       expect(charger.brand.length).toBeGreaterThan(0);
+      expect(charger.province.length).toBeGreaterThan(0);
     }
+  });
+
+  it("keeps the per-province counts in step with the data", () => {
+    const counts: Record<string, number> = {};
+    for (const charger of curatedChargers) counts[charger.province] = (counts[charger.province] ?? 0) + 1;
+    expect(counts).toEqual(curatedChargerProvinces);
   });
 
   it("converts to a planner place that saved trips accept", () => {
     const place = curatedChargerToPlace(curatedChargers[0]);
     expect(place.source).toBe("curated");
     expect(place.id).toBe(`curated:${curatedChargers[0].id}`);
-    const trip = {
-      origin: null,
-      destination: null,
-      waypoints: [place],
-    };
-    const parsed = savedTripSchema.shape.waypoints.safeParse(trip.waypoints);
-    expect(parsed.success).toBe(true);
+    expect(savedTripSchema.shape.waypoints.safeParse([place]).success).toBe(true);
   });
 });
 

@@ -4,6 +4,7 @@
 
 | Date | Commit | Evidence-backed summary |
 |---|---|---|
+| 2026-11-20 | branch `data/curated-chargers-4-provinces` | Curated chargers: 179 stations (Nakhon Pathom 16, Nonthaburi 3, Lopburi 30, Phetchabun 33, Saraburi 46, Nakhon Sawan 51) collected district by district from Google Maps; data model `zone` -> `province`/`district`, ids from coordinates, `curatedChargerProvinces` counts; version 1.8.1+20261121.2 |
 | 2026-11-21 | branch `feature/destination-overnight` | One-way trips: bed button on the destination makes it tonight's stop and asks for the next day's destination (undo restores it); day count/tabs update immediately; hint and tutorial updated; version 1.8.0+20261121.1 |
 | 2026-11-20 | branch `feature/multi-day-tutorial` | Tutorial: two multi-day steps (overnight button, day tabs), fix outdated day-count text; inline hint in the route panel; version 1.7.0+20261120.11 |
 | 2026-11-20 | branch `fix/nearby-categories` | Fix nearby categories: worship used a type Google rejects, viewpoint duplicated tourism, shopping returned unrelated places; nature adds hiking/garden; tests; version 1.6.3+20261120.10 |
